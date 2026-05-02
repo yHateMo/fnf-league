@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { supabase } from "./supabaseClient";
 import {
   Trophy, Target, Zap, Shield, ArrowUpRight, ArrowLeft,
   Calendar, MapPin, Lock, Plus, Sparkles, Edit3, Trash2,
@@ -46,24 +47,7 @@ const roleIcon  = (r) => r === "Attacker" ? Target     : r === "Midfielder" ? Za
 // ——————————————————————————————————————————————————————————————
 // INITIAL DATA
 // ——————————————————————————————————————————————————————————————
-const INITIAL_PLAYERS = [
-  { name: "Tuhin",   role: "Attacker"   },
-  { name: "Kamal",   role: "Defender"   },
-  { name: "Luqman",  role: "Defender"   },
-  { name: "AP",      role: "Defender"   },
-  { name: "Bilal",   role: "Attacker"   },
-  { name: "Ed",      role: "Defender"   },
-  { name: "Ghani",   role: "Midfielder" },
-  { name: "IAG",     role: "Defender"   },
-  { name: "Ibrahim", role: "Midfielder" },
-  { name: "Ish",     role: "Attacker"   },
-  { name: "Shak",    role: "Defender"   },
-  { name: "Walid",   role: "Midfielder" },
-  { name: "Yacub",   role: "Midfielder" },
-  { name: "Yaasir",  role: "Attacker"   },
-  { name: "Hachim",  role: "Defender"   },
-  { name: "Adil",    role: "Midfielder" },
-];
+const INITIAL_PLAYERS = [];
 
 // Empty match list — backend will populate. Pre-season state.
 const INITIAL_MATCHES = [];
@@ -1180,35 +1164,97 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
 // ——————————————————————————————————————————————————————————————
 // ADMIN PANEL
 // ——————————————————————————————————————————————————————————————
-const Admin = ({ players, matches, setMatches }) => {
+const Admin = ({ players, matches, setMatches, session }) => {
+  const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
   const [error, setError] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [creatingNew, setCreatingNew] = useState(false);
 
-  const attempt = () => {
-    if (pwd === ADMIN_PASSWORD) { setUnlocked(true); setError(""); }
-    else setError("Wrong password.");
+  const attempt = async () => {
+    if (!email || !pwd) { setError("Email and password required."); return; }
+    setSigningIn(true);
+    setError("");
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: pwd,
+    });
+    setSigningIn(false);
+    if (signInError) {
+      setError(signInError.message || "Login failed.");
+      setPwd("");
+    }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setEmail("");
+    setPwd("");
+    setError("");
   };
 
   const nextMatchweek = matches.length === 0 ? 1 : Math.max(...matches.map((m) => m.matchweek)) + 1;
   const currentMatch = matches.find((m) => m.id === editingId);
 
-  const saveMatch = (m) => {
-    setMatches((prev) => {
-      const exists = prev.find((x) => x.id === m.id);
-      return exists ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m];
-    });
-    setEditingId(null);
-    setCreatingNew(false);
-  };
-  const deleteMatch = (id) => {
-    setMatches((prev) => prev.filter((m) => m.id !== id));
-    setEditingId(null);
+  const saveMatch = async (m) => {
+  // Convert camelCase → snake_case for Supabase
+  const dbRow = {
+    id: m.id,
+    matchweek: m.matchweek,
+    date: m.date || null,
+    time: m.time || null,
+    pitch: m.pitch || null,
+    status: m.status,
+    home_captain: m.homeCaptain || null,
+    away_captain: m.awayCaptain || null,
+    home_score: m.homeScore || 0,
+    away_score: m.awayScore || 0,
+    home_squad: m.homeSquad || [],
+    away_squad: m.awaySquad || [],
+    home_ringers: m.homeRingers || [],
+    away_ringers: m.awayRingers || [],
+    goals: m.goals || [],
+    motm: m.motm || null,
+    notes: m.notes || null,
   };
 
-  if (!unlocked) {
+  const { error } = await supabase
+    .from("matches")
+    .upsert(dbRow);
+
+  if (error) {
+    console.error("Failed to save match:", error);
+    alert("Failed to save match — check console.");
+    return;
+  }
+
+  // Update local state so the UI reflects the change immediately
+  setMatches((prev) => {
+    const exists = prev.find((x) => x.id === m.id);
+    return exists ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m];
+  });
+  setEditingId(null);
+  setCreatingNew(false);
+};
+
+const deleteMatch = async (id) => {
+  const { error } = await supabase
+    .from("matches")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Failed to delete match:", error);
+    alert("Failed to delete match — check console.");
+    return;
+  }
+
+  setMatches((prev) => prev.filter((m) => m.id !== id));
+  setEditingId(null);
+};
+
+  if (!session) {
     return (
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
         <div className="mb-8"><SectionTag n={5} /><HugeHeading>ADMIN ACCESS</HugeHeading></div>
@@ -1217,14 +1263,30 @@ const Admin = ({ players, matches, setMatches }) => {
             <Lock size={16} />
             <span style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.2em" }}>RESTRICTED AREA</span>
           </div>
-          <Italic size={18} color={COLORS.ink}>Enter admin password</Italic>
-          <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setError(""); }}
+          <Italic size={18} color={COLORS.ink}>Sign in to manage matches</Italic>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            style={{ ...inputStyle, marginTop: 12, padding: "12px 16px" }}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={pwd}
+            onChange={(e) => { setPwd(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && attempt()}
-            style={{ ...inputStyle, marginTop: 12, padding: "12px 16px", borderColor: error ? COLORS.attacker : COLORS.line }} />
+            style={{ ...inputStyle, marginTop: 8, padding: "12px 16px", borderColor: error ? COLORS.attacker : COLORS.line }}
+          />
           {error && <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.attacker, marginTop: 8, letterSpacing: "0.1em" }}>{error.toUpperCase()}</div>}
-          <div className="mt-4"><Btn onClick={attempt} style={{ width: "100%", padding: "12px" }}>UNLOCK →</Btn></div>
+          <div className="mt-4">
+            <Btn onClick={attempt} style={{ width: "100%", padding: "12px", opacity: signingIn ? 0.6 : 1 }}>
+              {signingIn ? "SIGNING IN…" : "SIGN IN →"}
+            </Btn>
+          </div>
           <p style={{ fontFamily: FONT_BODY, fontSize: 12, color: COLORS.inkMuted, marginTop: 16, lineHeight: 1.5 }}>
-            Front-end check only — fine for keeping mates out, not real security. Hint: it's <span style={{ fontFamily: FONT_MONO, color: COLORS.accent }}>admin123</span>.
+            Real authentication via Supabase. Only authorised accounts can save changes.
           </p>
         </div>
       </section>
@@ -1256,8 +1318,11 @@ const Admin = ({ players, matches, setMatches }) => {
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div><SectionTag n={5} label="dashboard" /><HugeHeading>ADMIN DASHBOARD</HugeHeading></div>
-        <Btn onClick={() => setCreatingNew(true)}><Plus size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />NEW MATCH</Btn>
-      </div>
+        <div className="flex gap-2">
+          <Btn variant="ghost" onClick={signOut}>SIGN OUT</Btn>
+          <Btn onClick={() => setCreatingNew(true)}><Plus size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />NEW MATCH</Btn>
+        </div>
+        </div>
 
       {/* Scheduled fixtures */}
       <div className="mb-10">
@@ -1351,10 +1416,70 @@ const Footer = ({ players }) => (
 // ——————————————————————————————————————————————————————————————
 export default function App() {
   useFonts();
-  const [players] = useState(INITIAL_PLAYERS);
-  const [matches, setMatches] = useState(INITIAL_MATCHES);
+  const [players, setPlayers] = useState([]);
+  const [matches, setMatches] = useState([]);
   const [tab, setTab] = useState("table");
   const [matchDetailId, setMatchDetailId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState(null);
+
+  // Fetch players + matches from Supabase when the app loads
+  useEffect(() => {
+    async function loadData() {
+      const { data: playersData, error: playersError } = await supabase
+        .from("players")
+        .select("*")
+        .order("id");
+
+      const { data: matchesData, error: matchesError } = await supabase
+        .from("matches")
+        .select("*")
+        .order("matchweek", { ascending: true });
+
+      if (playersError) console.error("Failed to load players:", playersError);
+      if (matchesError) console.error("Failed to load matches:", matchesError);
+
+      // Convert DB column names (snake_case) → JS field names (camelCase)
+      const normalisedMatches = (matchesData || []).map((m) => ({
+        id: m.id,
+        matchweek: m.matchweek,
+        date: m.date,
+        time: m.time,
+        pitch: m.pitch,
+        status: m.status,
+        homeCaptain: m.home_captain,
+        awayCaptain: m.away_captain,
+        homeScore: m.home_score,
+        awayScore: m.away_score,
+        homeSquad: m.home_squad || [],
+        awaySquad: m.away_squad || [],
+        homeRingers: m.home_ringers || [],
+        awayRingers: m.away_ringers || [],
+        goals: m.goals || [],
+        motm: m.motm,
+        notes: m.notes,
+      }));
+
+      setPlayers(playersData || []);
+      setMatches(normalisedMatches);
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+  // Track Supabase auth session (login/logout)
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+  });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   const standings = useMemo(() => getStandings(players, matches), [players, matches]);
   const detailMatch = matchDetailId ? matches.find((m) => m.id === matchDetailId) : null;
@@ -1376,7 +1501,7 @@ export default function App() {
           {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
           {tab === "fixtures" && <Fixtures matches={matches} />}
           {tab === "results" && <Results matches={matches} onOpenMatch={(id) => setMatchDetailId(id)} />}
-          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} />}
+          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} />}
         </>
       )}
 
