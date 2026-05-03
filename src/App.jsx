@@ -1161,14 +1161,124 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
   );
 };
 
+// ────────────────────────────────────────────────
+// ROSTER MANAGER
+// ────────────────────────────────────────────────
+const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onBack }) => {
+  const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState("Midfielder");
+  const [busy, setBusy] = useState(false);
+
+  const handleAdd = async () => {
+    if (!newName.trim()) return;
+    setBusy(true);
+    const ok = await addPlayer(newName, newRole);
+    setBusy(false);
+    if (ok) { setNewName(""); setNewRole("Midfielder"); }
+  };
+
+  const handleRoleChange = async (name, currentRole) => {
+    const order = ["Attacker", "Midfielder", "Defender"];
+    const next = order[(order.indexOf(currentRole) + 1) % 3];
+    await updatePlayerRole(name, next);
+  };
+
+  const handleDelete = async (name) => {
+    if (!confirm(`Remove ${name} from the active roster?\n\nTheir match history will be preserved, but they won't appear in standings or fixtures anymore.`)) return;
+    await deletePlayer(name);
+  };
+
+  const roleColor = (role) => role === "Attacker" ? COLORS.attacker : role === "Defender" ? COLORS.defender : COLORS.mid;
+  const roleLabel = (role) => (role || "Midfielder").toUpperCase();
+
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+      <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
+        <div>
+          <SectionTag n={5} label="roster" />
+          <HugeHeading>MANAGE ROSTER</HugeHeading>
+          <Italic size={18} color={COLORS.inkMuted}>— {players.length} players on the books</Italic>
+        </div>
+        <Btn variant="ghost" onClick={onBack}>← BACK TO MATCHES</Btn>
+      </div>
+
+      {/* Add player form */}
+      <div className="mb-10 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 14 }}>NEW PLAYER</div>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1.2fr auto", alignItems: "end" }}>
+          <div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, marginBottom: 6, letterSpacing: "0.15em" }}>NAME</div>
+            <input
+              type="text"
+              placeholder="e.g. Karim"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              style={{ ...inputStyle, padding: "10px 14px" }}
+            />
+          </div>
+          <div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, marginBottom: 6, letterSpacing: "0.15em" }}>ROLE</div>
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value)} style={{ ...inputStyle, padding: "10px 14px" }}>
+              <option value="Attacker">Attacker</option>
+              <option value="Midfielder">Midfielder</option>
+              <option value="Defender">Defender</option>
+            </select>
+          </div>
+          <Btn onClick={handleAdd} style={{ opacity: busy ? 0.5 : 1, whiteSpace: "nowrap" }}>{busy ? "ADDING…" : "ADD →"}</Btn>
+        </div>
+      </div>
+
+      {/* Roster table */}
+      <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
+        <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 220px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+          <div>#</div>
+          <div>PLAYER</div>
+          <div>ROLE</div>
+          <div style={{ textAlign: "right" }}>ACTIONS</div>
+        </div>
+        {players.map((p, i) => (
+          <div key={p.name} className="grid items-center px-4 py-4" style={{ gridTemplateColumns: "60px 1fr 180px 220px", borderBottom: `1px solid ${COLORS.line}` }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
+            <div>
+              <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${roleColor(p.role)}`, color: roleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <button onClick={() => handleRoleChange(p.name, p.role)} style={{ ...miniBtnStyle, marginRight: 6 }}>CHANGE ROLE</button>
+              <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
+            </div>
+          </div>
+        ))}
+        {players.length === 0 && (
+          <div style={{ padding: "60px 20px", textAlign: "center", color: COLORS.inkMuted, fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18 }}>
+            No players yet. Add the first one above.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+const miniBtnStyle = {
+  padding: "6px 10px",
+  fontSize: 11,
+  background: "transparent",
+  color: "#f5ecd9",
+  border: "1px solid #2a2a2a",
+  fontFamily: "Anton, sans-serif",
+  letterSpacing: "0.1em",
+  cursor: "pointer",
+};
 // ——————————————————————————————————————————————————————————————
 // ADMIN PANEL
 // ——————————————————————————————————————————————————————————————
-const Admin = ({ players, matches, setMatches, session }) => {
+const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerRole, deletePlayer }) => {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
+  const [view, setView] = useState("matches"); // "matches" or "roster"
   const [editingId, setEditingId] = useState(null);
   const [creatingNew, setCreatingNew] = useState(false);
 
@@ -1310,6 +1420,10 @@ const deleteMatch = async (id) => {
     );
   }
 
+  // If user clicked "Manage Roster", show that screen instead
+  if (view === "roster") {
+    return <RosterManager players={players} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} deletePlayer={deletePlayer} onBack={() => setView("matches")} />;
+  }
   // Default admin dashboard
   const scheduled = matches.filter((m) => m.status === "scheduled");
   const completed = matches.filter((m) => m.status === "completed").slice().reverse();
@@ -1319,6 +1433,7 @@ const deleteMatch = async (id) => {
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div><SectionTag n={5} label="dashboard" /><HugeHeading>ADMIN DASHBOARD</HugeHeading></div>
         <div className="flex gap-2">
+          <Btn variant="ghost" onClick={() => setView(view === "matches" ? "roster" : "matches")}>{view === "matches" ? "MANAGE ROSTER" : "← BACK TO MATCHES"}</Btn>
           <Btn variant="ghost" onClick={signOut}>SIGN OUT</Btn>
           <Btn onClick={() => setCreatingNew(true)}><Plus size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />NEW MATCH</Btn>
         </div>
@@ -1484,6 +1599,44 @@ useEffect(() => {
   const standings = useMemo(() => getStandings(players, matches), [players, matches]);
   const detailMatch = matchDetailId ? matches.find((m) => m.id === matchDetailId) : null;
 
+  // ────────────────────────────────────────────────
+  // PLAYER MANAGEMENT — talks to Supabase
+  // ────────────────────────────────────────────────
+  async function addPlayer(name, role) {
+    const trimmed = name.trim();
+    if (!trimmed) { alert("Player name is required."); return false; }
+    if (players.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+      alert("A player with that name already exists.");
+      return false;
+    }
+    const { data, error } = await supabase
+      .from("players")
+      .insert([{ name: trimmed, role }])
+      .select()
+      .single();
+    if (error) { alert("Failed to add player: " + error.message); return false; }
+    setPlayers([...players, data]);
+    return true;
+  }
+
+  async function updatePlayerRole(name, newRole) {
+    const { error } = await supabase
+      .from("players")
+      .update({ role: newRole })
+      .eq("name", name);
+    if (error) { alert("Failed to update role: " + error.message); return false; }
+    setPlayers(players.map((p) => p.name === name ? { ...p, role: newRole } : p));
+    return true;
+  }
+
+  async function deletePlayer(name) {
+    // History is preserved — old matches still show their lineups, goals, assists.
+    // We just remove them from the active roster.
+    const { error } = await supabase.from("players").delete().eq("name", name);
+    if (error) { alert("Failed to delete player: " + error.message); return false; }
+    setPlayers(players.filter((p) => p.name !== name));
+    return true;
+  }
   // Reset detail view when changing tab
   useEffect(() => { setMatchDetailId(null); }, [tab]);
 
@@ -1501,7 +1654,7 @@ useEffect(() => {
           {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
           {tab === "fixtures" && <Fixtures matches={matches} />}
           {tab === "results" && <Results matches={matches} onOpenMatch={(id) => setMatchDetailId(id)} />}
-          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} />}
+          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} deletePlayer={deletePlayer} />}
         </>
       )}
 
