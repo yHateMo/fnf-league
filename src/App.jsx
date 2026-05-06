@@ -1164,17 +1164,22 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
 // ────────────────────────────────────────────────
 // ROSTER MANAGER
 // ────────────────────────────────────────────────
-const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onBack }) => {
+const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickname, deletePlayer, onBack }) => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("Midfielder");
+  const [newNickname, setNewNickname] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Inline nickname editing
+  const [editingNicknameFor, setEditingNicknameFor] = useState(null);
+  const [editNicknameValue, setEditNicknameValue] = useState("");
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
     setBusy(true);
-    const ok = await addPlayer(newName, newRole);
+    const ok = await addPlayer(newName, newRole, newNickname);
     setBusy(false);
-    if (ok) { setNewName(""); setNewRole("Midfielder"); }
+    if (ok) { setNewName(""); setNewNickname(""); setNewRole("Midfielder"); }
   };
 
   const handleRoleChange = async (name, currentRole) => {
@@ -1186,6 +1191,22 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onB
   const handleDelete = async (name) => {
     if (!confirm(`Remove ${name} from the active roster?\n\nTheir match history will be preserved, but they won't appear in standings or fixtures anymore.`)) return;
     await deletePlayer(name);
+  };
+
+  const startEditNickname = (player) => {
+    setEditingNicknameFor(player.name);
+    setEditNicknameValue(player.nickname || "");
+  };
+
+  const saveNickname = async () => {
+    await updatePlayerNickname(editingNicknameFor, editNicknameValue);
+    setEditingNicknameFor(null);
+    setEditNicknameValue("");
+  };
+
+  const cancelEditNickname = () => {
+    setEditingNicknameFor(null);
+    setEditNicknameValue("");
   };
 
   const roleColor = (role) => role === "Attacker" ? COLORS.attacker : role === "Defender" ? COLORS.defender : COLORS.mid;
@@ -1205,7 +1226,7 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onB
       {/* Add player form */}
       <div className="mb-10 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 14 }}>NEW PLAYER</div>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1.2fr auto", alignItems: "end" }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "1.6fr 1.6fr 1.2fr auto", alignItems: "end" }}>
           <div>
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, marginBottom: 6, letterSpacing: "0.15em" }}>NAME</div>
             <input
@@ -1213,6 +1234,17 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onB
               placeholder="e.g. Karim"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              style={{ ...inputStyle, padding: "10px 14px" }}
+            />
+          </div>
+          <div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, marginBottom: 6, letterSpacing: "0.15em" }}>NICKNAME <span style={{ opacity: 0.5 }}>(OPTIONAL)</span></div>
+            <input
+              type="text"
+              placeholder="e.g. The Sniper"
+              value={newNickname}
+              onChange={(e) => setNewNickname(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               style={{ ...inputStyle, padding: "10px 14px" }}
             />
@@ -1231,25 +1263,59 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, deletePlayer, onB
 
       {/* Roster table */}
       <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
-        <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 220px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+        <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
           <div>#</div>
           <div>PLAYER</div>
           <div>ROLE</div>
           <div style={{ textAlign: "right" }}>ACTIONS</div>
         </div>
-        {players.map((p, i) => (
-          <div key={p.name} className="grid items-center px-4 py-4" style={{ gridTemplateColumns: "60px 1fr 180px 220px", borderBottom: `1px solid ${COLORS.line}` }}>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
-            <div>
-              <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${roleColor(p.role)}`, color: roleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
+        {players.map((p, i) => {
+          const isEditing = editingNicknameFor === p.name;
+          return (
+            <div key={p.name} className="grid items-center px-4 py-4" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}` }}>
+              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</div>
+              <div>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
+                {isEditing ? (
+                  <div className="flex gap-2 items-center mt-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Nickname (optional)"
+                      value={editNicknameValue}
+                      onChange={(e) => setEditNicknameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveNickname();
+                        if (e.key === "Escape") cancelEditNickname();
+                      }}
+                      style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, maxWidth: 240 }}
+                    />
+                    <button onClick={saveNickname} style={{ ...miniBtnStyle, color: COLORS.accent, borderColor: COLORS.accent, padding: "4px 8px" }}>SAVE</button>
+                    <button onClick={cancelEditNickname} style={{ ...miniBtnStyle, padding: "4px 8px" }}>CANCEL</button>
+                  </div>
+                ) : (
+                  p.nickname ? (
+                    <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginTop: 2 }}>— "{p.nickname}"</div>
+                  ) : (
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, marginTop: 4, letterSpacing: "0.15em" }}>NO NICKNAME</div>
+                  )
+                )}
+              </div>
+              <div>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${roleColor(p.role)}`, color: roleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                {!isEditing && (
+                  <>
+                    <button onClick={() => startEditNickname(p)} style={{ ...miniBtnStyle, marginRight: 6 }}>NICKNAME</button>
+                    <button onClick={() => handleRoleChange(p.name, p.role)} style={{ ...miniBtnStyle, marginRight: 6 }}>ROLE</button>
+                    <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
+                  </>
+                )}
+              </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <button onClick={() => handleRoleChange(p.name, p.role)} style={{ ...miniBtnStyle, marginRight: 6 }}>CHANGE ROLE</button>
-              <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {players.length === 0 && (
           <div style={{ padding: "60px 20px", textAlign: "center", color: COLORS.inkMuted, fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18 }}>
             No players yet. Add the first one above.
@@ -1273,7 +1339,7 @@ const miniBtnStyle = {
 // ——————————————————————————————————————————————————————————————
 // ADMIN PANEL
 // ——————————————————————————————————————————————————————————————
-const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerRole, deletePlayer }) => {
+const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerRole, updatePlayerNickname, deletePlayer }) => {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState("");
@@ -1422,7 +1488,7 @@ const deleteMatch = async (id) => {
 
   // If user clicked "Manage Roster", show that screen instead
   if (view === "roster") {
-    return <RosterManager players={players} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} deletePlayer={deletePlayer} onBack={() => setView("matches")} />;
+    return <RosterManager players={players} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} updatePlayerNickname={updatePlayerNickname} deletePlayer={deletePlayer} onBack={() => setView("matches")} />;
   }
   // Default admin dashboard
   const scheduled = matches.filter((m) => m.status === "scheduled");
@@ -1602,8 +1668,9 @@ useEffect(() => {
   // ────────────────────────────────────────────────
   // PLAYER MANAGEMENT — talks to Supabase
   // ────────────────────────────────────────────────
-  async function addPlayer(name, role) {
+  async function addPlayer(name, role, nickname = "") {
     const trimmed = name.trim();
+    const trimmedNick = nickname.trim();
     if (!trimmed) { alert("Player name is required."); return false; }
     if (players.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
       alert("A player with that name already exists.");
@@ -1611,7 +1678,7 @@ useEffect(() => {
     }
     const { data, error } = await supabase
       .from("players")
-      .insert([{ name: trimmed, role }])
+      .insert([{ name: trimmed, role, nickname: trimmedNick || null }])
       .select()
       .single();
     if (error) { alert("Failed to add player: " + error.message); return false; }
@@ -1626,6 +1693,17 @@ useEffect(() => {
       .eq("name", name);
     if (error) { alert("Failed to update role: " + error.message); return false; }
     setPlayers(players.map((p) => p.name === name ? { ...p, role: newRole } : p));
+    return true;
+  }
+
+  async function updatePlayerNickname(name, newNickname) {
+    const trimmed = (newNickname || "").trim();
+    const { error } = await supabase
+      .from("players")
+      .update({ nickname: trimmed || null })
+      .eq("name", name);
+    if (error) { alert("Failed to update nickname: " + error.message); return false; }
+    setPlayers(players.map((p) => p.name === name ? { ...p, nickname: trimmed || null } : p));
     return true;
   }
 
@@ -1654,7 +1732,7 @@ useEffect(() => {
           {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
           {tab === "fixtures" && <Fixtures matches={matches} />}
           {tab === "results" && <Results matches={matches} onOpenMatch={(id) => setMatchDetailId(id)} />}
-          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} deletePlayer={deletePlayer} />}
+          {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} updatePlayerNickname={updatePlayerNickname} deletePlayer={deletePlayer} />}
         </>
       )}
 
