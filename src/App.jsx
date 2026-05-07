@@ -305,7 +305,7 @@ const Hero = ({ players, matches, standings }) => {
 // ——————————————————————————————————————————————————————————————
 // LEAGUE TABLE
 // ——————————————————————————————————————————————————————————————
-const LeagueTable = ({ standings, matches }) => {
+const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
   const [filter, setFilter] = useState("All");
   const roles = ["All", "Attacker", "Midfielder", "Defender"];
   const rows = useMemo(() => filter === "All" ? standings : standings.filter((p) => p.role === filter), [filter, standings]);
@@ -355,7 +355,25 @@ const LeagueTable = ({ standings, matches }) => {
                     </span>
                   </td>
                   <td className="py-4 px-3">
-                    <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.ink, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
+                    <button
+                      onClick={() => onOpenPlayer && onOpenPlayer(p.id)}
+                      style={{
+                        fontFamily: FONT_DISPLAY,
+                        fontSize: 22,
+                        color: COLORS.ink,
+                        letterSpacing: "0.02em",
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "color 150ms",
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = COLORS.accent)}
+                      onMouseOut={(e) => (e.currentTarget.style.color = COLORS.ink)}
+                    >
+                      {p.name.toUpperCase()}
+                    </button>
                   </td>
                   <td className="py-4 px-3">
                     <span className="inline-flex items-center gap-2 px-2 py-1" style={{ border: `1px solid ${roleColor(p.role)}`, color: roleColor(p.role), fontFamily: FONT_MONO, fontSize: 10, letterSpacing: "0.15em" }}>
@@ -374,6 +392,114 @@ const LeagueTable = ({ standings, matches }) => {
             })}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+};
+
+// ——————————————————————————————————————————————————————————————
+// PLAYER PROFILE — PLACEHOLDER
+// (Stats and full sections come in Step 4. For now: routing skeleton.)
+// ——————————————————————————————————————————————————————————————
+const PlayerProfile = ({ player, players, matches, onBack }) => {
+  if (!player) return null;
+  const stats = computeStats(player.name, matches);
+  const idx = players.findIndex((p) => p.id === player.id);
+  const totalPlayers = players.length;
+  const RoleIcon = roleIcon(player.role);
+
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+      {/* Top bar — back button + counter */}
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-10">
+        <button
+          onClick={onBack}
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 12,
+            color: COLORS.inkMuted,
+            letterSpacing: "0.15em",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.color = COLORS.ink)}
+          onMouseOut={(e) => (e.currentTarget.style.color = COLORS.inkMuted)}
+        >
+          <ArrowLeft size={14} />
+          BACK TO TABLE
+        </button>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+          / PLAYER PROFILE · {String(idx + 1).padStart(2, "0")} OF {String(totalPlayers).padStart(2, "0")}
+        </div>
+      </div>
+
+      {/* Hero — name + nickname + role chip */}
+      <div className="flex items-start justify-between flex-wrap gap-6 mb-8">
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 9vw, 96px)", lineHeight: 0.9, color: COLORS.ink, letterSpacing: "-0.01em" }}>
+            {player.name.toUpperCase()}
+          </h1>
+          {player.nickname && (
+            <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 22, color: COLORS.inkMuted, marginTop: 8 }}>
+              — "{player.nickname}"
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: "right", paddingTop: 12 }}>
+          <span className="inline-flex items-center gap-2 px-3 py-1.5" style={{ border: `1px solid ${roleColor(player.role)}`, color: roleColor(player.role), fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.15em" }}>
+            <RoleIcon size={12} />
+            {player.role.toUpperCase()}
+          </span>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 12 }}>
+            JOINED · SEP '25
+          </div>
+        </div>
+      </div>
+
+      {/* Quick stats row — confirms data flows through */}
+      <div
+        className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6 mb-12"
+        style={{ borderTop: `1px solid ${COLORS.line}`, borderBottom: `1px solid ${COLORS.line}` }}
+      >
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>MATCHES PLAYED</div>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: stats.mp === 0 ? COLORS.inkMuted : COLORS.ink, lineHeight: 1 }}>{stats.mp}</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>RECORD</div>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: COLORS.ink, lineHeight: 1 }}>
+            {stats.w}<span style={{ color: COLORS.inkMuted, fontSize: 22 }}> · </span>{stats.d}<span style={{ color: COLORS.inkMuted, fontSize: 22 }}> · </span>{stats.l}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>G + A</div>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: (stats.g + stats.a) === 0 ? COLORS.inkMuted : COLORS.accent, lineHeight: 1 }}>{stats.g + stats.a}</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>POINTS</div>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: stats.pts === 0 ? COLORS.inkMuted : COLORS.accent, lineHeight: 1 }}>{stats.pts}</div>
+        </div>
+      </div>
+
+      {/* Placeholder block — Step 4 will replace this with the real sections */}
+      <div
+        className="p-12 text-center"
+        style={{ background: COLORS.bg2, border: `1px dashed ${COLORS.line}` }}
+      >
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 12 }}>
+          / WORK IN PROGRESS
+        </div>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 48, color: COLORS.ink, letterSpacing: "0.02em", lineHeight: 1 }}>
+          FULL PROFILE COMING SOON
+        </div>
+        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18, color: COLORS.inkMuted, marginTop: 12, maxWidth: 600, marginLeft: "auto", marginRight: "auto" }}>
+          — recent form, attendance, chemistry, best/worst performances, and the role-specific stat block are all on the way.
+        </div>
       </div>
     </section>
   );
@@ -1601,6 +1727,7 @@ export default function App() {
   const [matches, setMatches] = useState([]);
   const [tab, setTab] = useState("table");
   const [matchDetailId, setMatchDetailId] = useState(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
 
@@ -1664,6 +1791,7 @@ useEffect(() => {
 
   const standings = useMemo(() => getStandings(players, matches), [players, matches]);
   const detailMatch = matchDetailId ? matches.find((m) => m.id === matchDetailId) : null;
+  const selectedPlayer = selectedPlayerId ? players.find((p) => p.id === selectedPlayerId) : null;
 
   // ────────────────────────────────────────────────
   // PLAYER MANAGEMENT — talks to Supabase
@@ -1715,8 +1843,11 @@ useEffect(() => {
     setPlayers(players.filter((p) => p.name !== name));
     return true;
   }
-  // Reset detail view when changing tab
-  useEffect(() => { setMatchDetailId(null); }, [tab]);
+  // Reset detail views when changing tab
+  useEffect(() => {
+    setMatchDetailId(null);
+    setSelectedPlayerId(null);
+  }, [tab]);
 
   return (
     <div className="min-h-screen w-full" style={{ background: COLORS.bg, color: COLORS.ink, fontFamily: FONT_BODY }}>
@@ -1724,11 +1855,27 @@ useEffect(() => {
       <Ticker players={players} matches={matches} />
       <Header tab={tab} setTab={setTab} matches={matches} />
 
-      {detailMatch ? (
+      {selectedPlayer ? (
+        <PlayerProfile
+          player={selectedPlayer}
+          players={players}
+          matches={matches}
+          onBack={() => setSelectedPlayerId(null)}
+        />
+      ) : detailMatch ? (
         <MatchDetail match={detailMatch} onBack={() => setMatchDetailId(null)} />
       ) : (
         <>
-          {tab === "table" && (<><Hero players={players} matches={matches} standings={standings} /><LeagueTable standings={standings} matches={matches} /></>)}
+          {tab === "table" && (
+            <>
+              <Hero players={players} matches={matches} standings={standings} />
+              <LeagueTable
+                standings={standings}
+                matches={matches}
+                onOpenPlayer={(id) => setSelectedPlayerId(id)}
+              />
+            </>
+          )}
           {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
           {tab === "fixtures" && <Fixtures matches={matches} />}
           {tab === "results" && <Results matches={matches} onOpenMatch={(id) => setMatchDetailId(id)} />}
