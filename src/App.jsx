@@ -85,7 +85,7 @@ function getStandings(players, matches) {
 }
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER PROFILE STATS — Step 4 helpers
+// PLAYER PROFILE STATS — universal helpers
 // ——————————————————————————————————————————————————————————————
 function getPlayerMatchHistory(playerName, matches) {
   const history = [];
@@ -215,6 +215,107 @@ function getStandoutMatches(history) {
 }
 
 // ——————————————————————————————————————————————————————————————
+// ROLE-SPECIFIC STATS — Step 5
+// ——————————————————————————————————————————————————————————————
+
+// Attacker — leads with goals
+function getAttackerStats(history) {
+  if (history.length === 0) return null;
+  const goals   = history.reduce((s, h) => s + h.goals,   0);
+  const assists = history.reduce((s, h) => s + h.assists, 0);
+  const mp      = history.length;
+  const teamGoalsTotal = history.reduce((s, h) => s + h.forScore, 0);
+  const involvement = teamGoalsTotal > 0
+    ? Math.round(100 * (goals + assists) / teamGoalsTotal)
+    : 0;
+  return {
+    goals,
+    assists,
+    gPlusA: goals + assists,
+    gPlusAPerGame: mp > 0 ? ((goals + assists) / mp).toFixed(2) : "0.00",
+    goalInvolvement: involvement,
+  };
+}
+
+// Midfielder — leads with assists
+function getMidfielderStats(history) {
+  if (history.length === 0) return null;
+  const goals   = history.reduce((s, h) => s + h.goals,   0);
+  const assists = history.reduce((s, h) => s + h.assists, 0);
+  const mp      = history.length;
+  const wins    = history.filter((h) => h.result === "W").length;
+  const draws   = history.filter((h) => h.result === "D").length;
+  const unbeatenPct = mp > 0 ? Math.round(100 * (wins + draws) / mp) : 0;
+
+  const captainGames = history.filter((h) => h.isCaptain);
+  const captainWins  = captainGames.filter((h) => h.result === "W").length;
+  const captainWinPct = captainGames.length > 0
+    ? Math.round(100 * captainWins / captainGames.length)
+    : null;
+
+  return {
+    assists,
+    goals,
+    gPlusA: goals + assists,
+    unbeatenPct,
+    captainWinPct,
+    captainGames: captainGames.length,
+  };
+}
+
+// Defender — two halves: defensive (bread & butter) + attacking (when he chips in)
+// FORTRESS tag = lowest conceded/game among defenders with >=3 games
+function getDefenderStats(playerName, history, allPlayers, allMatches) {
+  if (history.length === 0) return null;
+  const goals   = history.reduce((s, h) => s + h.goals,   0);
+  const assists = history.reduce((s, h) => s + h.assists, 0);
+  const mp      = history.length;
+  const totalConceded   = history.reduce((s, h) => s + h.agScore, 0);
+  const concededPerGame = mp > 0 ? (totalConceded / mp).toFixed(2) : "0.00";
+  const cleanSheets     = history.filter((h) => h.agScore === 0).length;
+
+  // Current unbeaten run — count newest matches until hitting an L
+  let unbeatenRun = 0;
+  for (const h of history) {
+    if (h.result === "L") break;
+    unbeatenRun++;
+  }
+
+  const wins  = history.filter((h) => h.result === "W").length;
+  const draws = history.filter((h) => h.result === "D").length;
+  const unbeatenPct = mp > 0 ? Math.round(100 * (wins + draws) / mp) : 0;
+
+  // FORTRESS — lowest conceded/game across all defenders (min 3 games)
+  const isFortress = (() => {
+    if (mp < 3) return false;
+    const defenders = (allPlayers || []).filter((p) => p.role === "Defender");
+    const rates = [];
+    for (const d of defenders) {
+      const dh = getPlayerMatchHistory(d.name, allMatches);
+      if (dh.length < 3) continue;
+      const conc = dh.reduce((s, h) => s + h.agScore, 0);
+      rates.push(conc / dh.length);
+    }
+    if (rates.length === 0) return false;
+    const lowest = Math.min(...rates);
+    const myRate = totalConceded / mp;
+    return Math.abs(myRate - lowest) < 0.001; // float-safe equality
+  })();
+
+  return {
+    concededPerGame,
+    totalConceded,
+    cleanSheets,
+    unbeatenRun,
+    isFortress,
+    goals,
+    assists,
+    gPlusA: goals + assists,
+    unbeatenPct,
+  };
+}
+
+// ——————————————————————————————————————————————————————————————
 // SHARED LITTLE BITS
 // ——————————————————————————————————————————————————————————————
 const Grain = () => (
@@ -319,6 +420,69 @@ const formatDate = (iso) => {
     return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
   } catch { return iso; }
 };
+
+// ——————————————————————————————————————————————————————————————
+// ROLE STAT BLOCKS — Step 5
+// One reusable layout: huge heading + 4-stat grid, first stat is "hero"
+// ——————————————————————————————————————————————————————————————
+const RoleStatBlock = ({ title, subtitle, stats }) => (
+  <div className="mb-12">
+    <div className="mb-6">
+      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em" }}>
+        / ROLE STATS
+      </div>
+      <HugeHeading>{title}</HugeHeading>
+      {subtitle && <div className="mt-2"><Italic>{subtitle}</Italic></div>}
+    </div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {stats.map((s, i) => {
+        const isHero = i === 0;
+        return (
+          <div
+            key={s.label}
+            className="p-6 relative"
+            style={{
+              background: COLORS.bg2,
+              border: `1px solid ${isHero ? COLORS.accent : COLORS.line}`,
+              minHeight: 130,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+                {s.label}
+              </span>
+              {s.tag && (
+                <span style={{
+                  fontFamily: FONT_MONO, fontSize: 9, color: COLORS.accent,
+                  letterSpacing: "0.2em", padding: "2px 6px",
+                  border: `1px solid ${COLORS.accent}`,
+                }}>
+                  ★ {s.tag}
+                </span>
+              )}
+            </div>
+            <div style={{
+              fontFamily: FONT_DISPLAY,
+              fontSize: isHero ? 64 : 40,
+              color: s.value === "—" ? COLORS.inkMuted : (isHero ? COLORS.accent : COLORS.ink),
+              lineHeight: 1,
+            }}>
+              {s.value}
+            </div>
+            {s.sub && (
+              <div style={{
+                fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14,
+                color: COLORS.inkMuted, marginTop: 8,
+              }}>
+                {s.sub}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
 
 // ——————————————————————————————————————————————————————————————
 // TICKER
@@ -549,7 +713,7 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER PROFILE — Step 4 (universal sections)
+// PLAYER PROFILE — Step 5 (now with role-specific stat blocks)
 // ——————————————————————————————————————————————————————————————
 const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
   if (!h) {
@@ -591,6 +755,93 @@ const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
         — {contributionText}.
       </div>
     </button>
+  );
+};
+
+// Build the right role block(s) for a player
+const RoleBlocks = ({ player, history, allPlayers, allMatches }) => {
+  if (history.length === 0) {
+    return (
+      <div className="mb-12 p-8" style={{ background: COLORS.bg2, border: `1px dashed ${COLORS.line}` }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 8 }}>
+          / ROLE STATS
+        </div>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 32, color: COLORS.ink, lineHeight: 1 }}>
+          NO DATA YET
+        </div>
+        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 16, color: COLORS.inkMuted, marginTop: 8 }}>
+          — stats kick in once they take the pitch.
+        </div>
+      </div>
+    );
+  }
+
+  if (player.role === "Attacker") {
+    const s = getAttackerStats(history);
+    return (
+      <RoleStatBlock
+        title="SCORING"
+        subtitle="— how often the net bulges with him on the pitch."
+        stats={[
+          { label: "GOALS",            value: s.goals },
+          { label: "ASSISTS",          value: s.assists },
+          { label: "G+A / GAME",       value: s.gPlusAPerGame },
+          { label: "GOAL INVOLVEMENT", value: `${s.goalInvolvement}%`, sub: "of team's goals" },
+        ]}
+      />
+    );
+  }
+
+  if (player.role === "Midfielder") {
+    const s = getMidfielderStats(history);
+    return (
+      <RoleStatBlock
+        title="PLAYMAKING"
+        subtitle="— the engine room. Sets the tempo, picks the pass."
+        stats={[
+          { label: "ASSISTS",      value: s.assists },
+          { label: "G+A",          value: s.gPlusA },
+          { label: "UNBEATEN %",   value: `${s.unbeatenPct}%`, sub: "wins + draws" },
+          {
+            label: "CAPTAIN W%",
+            value: s.captainWinPct === null ? "—" : `${s.captainWinPct}%`,
+            sub: s.captainGames > 0 ? `${s.captainGames} as captain` : "never captained",
+          },
+        ]}
+      />
+    );
+  }
+
+  // Defender — two blocks
+  const s = getDefenderStats(player.name, history, allPlayers, allMatches);
+  return (
+    <>
+      <RoleStatBlock
+        title="DEFENSIVE"
+        subtitle="— the bread and butter. Shutting it down at the back."
+        stats={[
+          {
+            label: "CONCEDED / GAME",
+            value: s.concededPerGame,
+            tag: s.isFortress ? "FORTRESS" : null,
+            sub: s.isFortress ? "league's tightest" : null,
+          },
+          { label: "TOTAL CONCEDED", value: s.totalConceded },
+          { label: "CLEAN SHEETS",   value: s.cleanSheets },
+          { label: "UNBEATEN RUN",   value: s.unbeatenRun, sub: s.unbeatenRun === 0 ? "lost last out" : `last ${s.unbeatenRun} unbeaten` },
+        ]}
+      />
+      <RoleStatBlock
+        title="ATTACKING"
+        subtitle="— when he chips in up the other end."
+        stats={[
+          { label: "GOALS",       value: s.goals },
+          { label: "ASSISTS",     value: s.assists },
+          { label: "G+A",         value: s.gPlusA },
+          { label: "UNBEATEN %",  value: `${s.unbeatenPct}%`, sub: "wins + draws" },
+        ]}
+      />
+    </>
   );
 };
 
@@ -685,17 +936,8 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
         </div>
       </div>
 
-      <div className="mb-12 p-8" style={{ background: COLORS.bg2, border: `1px dashed ${COLORS.line}` }}>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 8 }}>
-          / WORK IN PROGRESS · ROLE STATS
-        </div>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 32, color: COLORS.ink, lineHeight: 1 }}>
-          ROLE-SPECIFIC STAT BLOCK
-        </div>
-        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 16, color: COLORS.inkMuted, marginTop: 8 }}>
-          — coming in step 5. Will lead with goals (attackers), assists (midfielders), or conceded/game (defenders).
-        </div>
-      </div>
+      {/* Role-specific stat block(s) — replaces the dashed placeholder */}
+      <RoleBlocks player={player} history={history} allPlayers={players} allMatches={matches} />
 
       <div className="mb-12">
         <div className="mb-6">
@@ -1983,7 +2225,8 @@ const Footer = ({ players }) => (
 );
 
 // ——————————————————————————————————————————————————————————————
-// APP
+// APP — match-detail check moved BEFORE selectedPlayer to fix
+// the "click match in profile, nothing happens" bug
 // ——————————————————————————————————————————————————————————————
 export default function App() {
   useFonts();
@@ -2112,16 +2355,22 @@ export default function App() {
       <Ticker players={players} matches={matches} />
       <Header tab={tab} setTab={setTab} matches={matches} />
 
-      {selectedPlayer ? (
+      {detailMatch ? (
+        <MatchDetail
+          match={detailMatch}
+          onBack={() => setMatchDetailId(null)}
+        />
+      ) : selectedPlayer ? (
         <PlayerProfile
           player={selectedPlayer}
           players={players}
           matches={matches}
           onBack={() => setSelectedPlayerId(null)}
-          onOpenMatch={(id) => setMatchDetailId(id)}
+          onOpenMatch={(id) => {
+            setMatchDetailId(id);
+            setSelectedPlayerId(null);
+          }}
         />
-      ) : detailMatch ? (
-        <MatchDetail match={detailMatch} onBack={() => setMatchDetailId(null)} />
       ) : (
         <>
           {tab === "table" && (
