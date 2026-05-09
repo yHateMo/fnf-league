@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabaseClient";
 import {
-  Trophy, Target, Zap, Shield, ArrowUpRight, ArrowLeft,
+  Trophy, Target, Zap, Shield, ArrowUpRight, ArrowLeft, ArrowRight,
   Calendar, MapPin, Lock, Plus, Sparkles, Edit3, Trash2,
   X, Check, Star, Award
 } from "lucide-react";
@@ -44,18 +44,12 @@ const COLORS = {
 const roleColor = (r) => r === "Attacker" ? COLORS.attacker : r === "Midfielder" ? COLORS.mid : COLORS.defender;
 const roleIcon  = (r) => r === "Attacker" ? Target     : r === "Midfielder" ? Zap       : Shield;
 
-// ——————————————————————————————————————————————————————————————
-// INITIAL DATA
-// ——————————————————————————————————————————————————————————————
 const INITIAL_PLAYERS = [];
-
-// Empty match list — backend will populate. Pre-season state.
 const INITIAL_MATCHES = [];
-
 const ADMIN_PASSWORD = "admin123";
 
 // ——————————————————————————————————————————————————————————————
-// STATS — computed from matches
+// STATS
 // ——————————————————————————————————————————————————————————————
 function computeStats(playerName, matches) {
   let mp = 0, w = 0, d = 0, l = 0, g = 0, a = 0;
@@ -84,10 +78,140 @@ function getStandings(players, matches) {
     .map((p) => ({ ...p, ...computeStats(p.name, matches) }))
     .sort((A, B) => {
       if (B.pts !== A.pts) return B.pts - A.pts;
-      const adA = A.g - 0, adB = B.g - 0; // tiebreak by goals
+      const adA = A.g - 0, adB = B.g - 0;
       if (adB !== adA) return adB - adA;
       return (B.g + B.a) - (A.g + A.a);
     });
+}
+
+// ——————————————————————————————————————————————————————————————
+// PLAYER PROFILE STATS — Step 4 helpers
+// ——————————————————————————————————————————————————————————————
+function getPlayerMatchHistory(playerName, matches) {
+  const history = [];
+  for (const m of matches) {
+    if (m.status !== "completed") continue;
+    const inHome = m.homeSquad.includes(playerName);
+    const inAway = m.awaySquad.includes(playerName);
+    if (!inHome && !inAway) continue;
+
+    const forScore = inHome ? m.homeScore : m.awayScore;
+    const agScore  = inHome ? m.awayScore : m.homeScore;
+    let result;
+    if (forScore > agScore) result = "W";
+    else if (forScore === agScore) result = "D";
+    else result = "L";
+
+    let goals = 0, assists = 0;
+    for (const g of m.goals) {
+      if (!g.isRinger && g.scorer === playerName) goals++;
+      if (g.assister === playerName) assists++;
+    }
+
+    const teammates = (inHome ? m.homeSquad : m.awaySquad).filter((n) => n !== playerName);
+    const opponents = inHome ? m.awaySquad : m.homeSquad;
+    const isCaptain = (inHome && m.homeCaptain === playerName) || (inAway && m.awayCaptain === playerName);
+
+    history.push({
+      match: m,
+      side: inHome ? "home" : "away",
+      forScore,
+      agScore,
+      result,
+      goals,
+      assists,
+      isCaptain,
+      teammates,
+      opponents,
+    });
+  }
+  return history.sort((a, b) => b.match.matchweek - a.match.matchweek);
+}
+
+function getRecentForm(history) {
+  return history.slice(0, 5).reverse().map((h) => h.result);
+}
+
+function getAttendance(history, matches) {
+  const totalCompleted = matches.filter((m) => m.status === "completed").length;
+  if (totalCompleted === 0) return { pct: 0, played: 0, total: 0 };
+  const played = history.length;
+  return {
+    pct: Math.round(100 * played / totalCompleted),
+    played,
+    total: totalCompleted,
+  };
+}
+
+function getChemistry(playerName, history) {
+  const partnerStats = {};
+  const opponentStats = {};
+
+  for (const h of history) {
+    for (const t of h.teammates) {
+      if (!partnerStats[t]) partnerStats[t] = { games: 0, wins: 0, losses: 0, draws: 0 };
+      partnerStats[t].games++;
+      if (h.result === "W") partnerStats[t].wins++;
+      else if (h.result === "L") partnerStats[t].losses++;
+      else partnerStats[t].draws++;
+    }
+    for (const o of h.opponents) {
+      if (!opponentStats[o]) opponentStats[o] = { games: 0, wins: 0, losses: 0, draws: 0 };
+      opponentStats[o].games++;
+      if (h.result === "W") opponentStats[o].wins++;
+      else if (h.result === "L") opponentStats[o].losses++;
+      else opponentStats[o].draws++;
+    }
+  }
+
+  const partnerCandidates = Object.entries(partnerStats).filter(([_, s]) => s.games >= 2);
+  partnerCandidates.sort((a, b) => {
+    const rateA = a[1].wins / a[1].games;
+    const rateB = b[1].wins / b[1].games;
+    if (rateB !== rateA) return rateB - rateA;
+    return b[1].games - a[1].games;
+  });
+  const best = partnerCandidates[0]
+    ? { name: partnerCandidates[0][0], ...partnerCandidates[0][1] }
+    : null;
+
+  const oppCandidates = Object.entries(opponentStats).filter(([_, s]) => s.games >= 2);
+  oppCandidates.sort((a, b) => {
+    const rateA = a[1].wins / a[1].games;
+    const rateB = b[1].wins / b[1].games;
+    if (rateA !== rateB) return rateA - rateB;
+    return b[1].losses - a[1].losses;
+  });
+  const nemesis = oppCandidates[0] && (oppCandidates[0][1].losses > 0 || oppCandidates[0][1].wins === 0)
+    ? { name: oppCandidates[0][0], ...oppCandidates[0][1] }
+    : null;
+
+  return { best, nemesis };
+}
+
+function getStandoutMatches(history) {
+  if (history.length === 0) return { best: null, worst: null };
+
+  const scored = history.map((h) => ({
+    h,
+    contribution: h.goals + h.assists,
+    resultScore: h.result === "W" ? 2 : h.result === "D" ? 1 : 0,
+  }));
+
+  const best = [...scored].sort((a, b) => {
+    if (b.contribution !== a.contribution) return b.contribution - a.contribution;
+    if (b.resultScore !== a.resultScore) return b.resultScore - a.resultScore;
+    return (b.h.forScore - b.h.agScore) - (a.h.forScore - a.h.agScore);
+  })[0]?.h;
+
+  const worst = [...scored].sort((a, b) => {
+    if (a.contribution !== b.contribution) return a.contribution - b.contribution;
+    if (a.resultScore !== b.resultScore) return a.resultScore - b.resultScore;
+    return (a.h.forScore - a.h.agScore) - (b.h.forScore - b.h.agScore);
+  })[0]?.h;
+
+  if (history.length === 1) return { best, worst: null };
+  return { best, worst };
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -118,6 +242,26 @@ const HugeHeading = ({ children }) => (
 const Italic = ({ children, color = COLORS.inkMuted, size = 18 }) => (
   <span style={{ fontFamily: FONT_SERIF, fontStyle: "italic", color, fontSize: size }}>{children}</span>
 );
+
+const FormDot = ({ result, size = 12 }) => {
+  const colour =
+    result === "W" ? COLORS.accent :
+    result === "L" ? COLORS.attacker :
+    COLORS.inkMuted;
+  return (
+    <span
+      title={result}
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: colour,
+        marginRight: 6,
+      }}
+    />
+  );
+};
 
 const Btn = ({ children, onClick, variant = "primary", type = "button", className = "", style = {} }) => {
   const base = {
@@ -167,6 +311,14 @@ const EmptyPanel = ({ title, sub }) => (
     <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18, color: COLORS.inkMuted, marginTop: 6 }}>{sub}</div>
   </div>
 );
+
+const formatDate = (iso) => {
+  if (!iso) return "TBC";
+  try {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  } catch { return iso; }
+};
 
 // ——————————————————————————————————————————————————————————————
 // TICKER
@@ -234,7 +386,6 @@ const Header = ({ tab, setTab, matches }) => {
     </header>
   );
 };
-
 // ——————————————————————————————————————————————————————————————
 // HERO
 // ——————————————————————————————————————————————————————————————
@@ -398,34 +549,75 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER PROFILE — PLACEHOLDER
-// (Stats and full sections come in Step 4. For now: routing skeleton.)
+// PLAYER PROFILE — Step 4 (universal sections)
 // ——————————————————————————————————————————————————————————————
-const PlayerProfile = ({ player, players, matches, onBack }) => {
+const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
+  if (!h) {
+    return (
+      <div className="p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+          {flavour === "best" ? "★ BEST" : "▼ WORST"}
+        </div>
+        <div style={{ marginTop: 8 }}><Italic size={16}>Not enough matches yet.</Italic></div>
+      </div>
+    );
+  }
+  const tagColor = flavour === "best" ? COLORS.accent : COLORS.attacker;
+  const tagLabel = flavour === "best" ? "★ BEST" : "▼ WORST";
+  const m = h.match;
+  const oppCaptain = h.side === "home" ? m.awayCaptain : m.homeCaptain;
+  const resultText = h.result === "W" ? "WIN" : h.result === "D" ? "DRAW" : "LOSS";
+  const contribution = h.goals + h.assists;
+  const contributionText = contribution === 0
+    ? "no goal involvement"
+    : `${h.goals > 0 ? `${h.goals} goal${h.goals === 1 ? "" : "s"}` : ""}${h.goals > 0 && h.assists > 0 ? ", " : ""}${h.assists > 0 ? `${h.assists} assist${h.assists === 1 ? "" : "s"}` : ""}`;
+
+  return (
+    <button
+      onClick={() => onOpenMatch && onOpenMatch(m.id)}
+      className="w-full text-left p-6 transition-colors"
+      style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, cursor: "pointer" }}
+      onMouseOver={(e) => (e.currentTarget.style.borderColor = tagColor)}
+      onMouseOut={(e) => (e.currentTarget.style.borderColor = COLORS.line)}
+    >
+      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: tagColor, letterSpacing: "0.2em" }}>{tagLabel}</div>
+      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: COLORS.ink, marginTop: 8, lineHeight: 1 }}>
+        MW {String(m.matchweek).padStart(2, "0")} · {formatDate(m.date).toUpperCase()}
+      </div>
+      <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: COLORS.inkMuted, marginTop: 6 }}>
+        vs {oppCaptain.toUpperCase()}'S XI · {h.forScore}—{h.agScore} {resultText}
+      </div>
+      <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 17, color: COLORS.ink, marginTop: 10, lineHeight: 1.4 }}>
+        — {contributionText}.
+      </div>
+    </button>
+  );
+};
+
+const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
   if (!player) return null;
   const stats = computeStats(player.name, matches);
   const idx = players.findIndex((p) => p.id === player.id);
   const totalPlayers = players.length;
   const RoleIcon = roleIcon(player.role);
 
+  const history    = useMemo(() => getPlayerMatchHistory(player.name, matches), [player.name, matches]);
+  const recentForm = useMemo(() => getRecentForm(history),                       [history]);
+  const attendance = useMemo(() => getAttendance(history, matches),              [history, matches]);
+  const chemistry  = useMemo(() => getChemistry(player.name, history),           [player.name, history]);
+  const standouts  = useMemo(() => getStandoutMatches(history),                  [history]);
+
+  const hasData = history.length > 0;
+
   return (
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
-      {/* Top bar — back button + counter */}
       <div className="flex items-center justify-between flex-wrap gap-4 mb-10">
         <button
           onClick={onBack}
           style={{
-            fontFamily: FONT_MONO,
-            fontSize: 12,
-            color: COLORS.inkMuted,
-            letterSpacing: "0.15em",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
+            fontFamily: FONT_MONO, fontSize: 12, color: COLORS.inkMuted,
+            letterSpacing: "0.15em", background: "transparent", border: "none",
+            cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8,
           }}
           onMouseOver={(e) => (e.currentTarget.style.color = COLORS.ink)}
           onMouseOut={(e) => (e.currentTarget.style.color = COLORS.inkMuted)}
@@ -438,7 +630,6 @@ const PlayerProfile = ({ player, players, matches, onBack }) => {
         </div>
       </div>
 
-      {/* Hero — name + nickname + role chip */}
       <div className="flex items-start justify-between flex-wrap gap-6 mb-8">
         <div style={{ flex: 1, minWidth: 280 }}>
           <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 9vw, 96px)", lineHeight: 0.9, color: COLORS.ink, letterSpacing: "-0.01em" }}>
@@ -461,50 +652,173 @@ const PlayerProfile = ({ player, players, matches, onBack }) => {
         </div>
       </div>
 
-      {/* Quick stats row — confirms data flows through */}
       <div
-        className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6 mb-12"
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 py-6 mb-12"
         style={{ borderTop: `1px solid ${COLORS.line}`, borderBottom: `1px solid ${COLORS.line}` }}
       >
         <div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>MATCHES PLAYED</div>
-          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: stats.mp === 0 ? COLORS.inkMuted : COLORS.ink, lineHeight: 1 }}>{stats.mp}</div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 8 }}>LAST 5</div>
+          {recentForm.length === 0 ? (
+            <Italic size={16}>— no matches yet</Italic>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {recentForm.map((r, i) => <FormDot key={i} result={r} size={14} />)}
+            </div>
+          )}
         </div>
         <div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>RECORD</div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 8 }}>ATTENDANCE</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: attendance.played === 0 ? COLORS.inkMuted : COLORS.accent, lineHeight: 1 }}>
+              {attendance.pct}%
+            </span>
+            <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: COLORS.inkMuted }}>
+              {attendance.played}/{attendance.total}
+            </span>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 8 }}>RECORD</div>
           <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: COLORS.ink, lineHeight: 1 }}>
             {stats.w}<span style={{ color: COLORS.inkMuted, fontSize: 22 }}> · </span>{stats.d}<span style={{ color: COLORS.inkMuted, fontSize: 22 }}> · </span>{stats.l}
           </div>
         </div>
-        <div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>G + A</div>
-          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: (stats.g + stats.a) === 0 ? COLORS.inkMuted : COLORS.accent, lineHeight: 1 }}>{stats.g + stats.a}</div>
+      </div>
+
+      <div className="mb-12 p-8" style={{ background: COLORS.bg2, border: `1px dashed ${COLORS.line}` }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 8 }}>
+          / WORK IN PROGRESS · ROLE STATS
         </div>
-        <div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>POINTS</div>
-          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: stats.pts === 0 ? COLORS.inkMuted : COLORS.accent, lineHeight: 1 }}>{stats.pts}</div>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 32, color: COLORS.ink, lineHeight: 1 }}>
+          ROLE-SPECIFIC STAT BLOCK
+        </div>
+        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 16, color: COLORS.inkMuted, marginTop: 8 }}>
+          — coming in step 5. Will lead with goals (attackers), assists (midfielders), or conceded/game (defenders).
         </div>
       </div>
 
-      {/* Placeholder block — Step 4 will replace this with the real sections */}
-      <div
-        className="p-12 text-center"
-        style={{ background: COLORS.bg2, border: `1px dashed ${COLORS.line}` }}
-      >
-        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 12 }}>
-          / WORK IN PROGRESS
+      <div className="mb-12">
+        <div className="mb-6">
+          <SectionTag n={2} />
+          <HugeHeading>CHEMISTRY</HugeHeading>
         </div>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 48, color: COLORS.ink, letterSpacing: "0.02em", lineHeight: 1 }}>
-          FULL PROFILE COMING SOON
+        {!hasData ? (
+          <EmptyPanel title="NO DATA YET" sub="Chemistry unlocks after a few games together." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>BEST PARTNER</div>
+              {chemistry.best ? (
+                <>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 42, color: COLORS.ink, lineHeight: 1, marginTop: 8 }}>
+                    {chemistry.best.name.toUpperCase()}
+                  </div>
+                  <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 15, color: COLORS.inkMuted, marginTop: 6 }}>
+                    — {chemistry.best.wins}W {chemistry.best.draws}D {chemistry.best.losses}L together · {Math.round(100 * chemistry.best.wins / chemistry.best.games)}% win rate
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: 8 }}><Italic size={16}>Not enough shared games yet.</Italic></div>
+              )}
+            </div>
+            <div className="p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>NEMESIS</div>
+              {chemistry.nemesis ? (
+                <>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 42, color: COLORS.attacker, lineHeight: 1, marginTop: 8 }}>
+                    {chemistry.nemesis.name.toUpperCase()}
+                  </div>
+                  <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 15, color: COLORS.inkMuted, marginTop: 6 }}>
+                    — {chemistry.nemesis.wins}W {chemistry.nemesis.draws}D {chemistry.nemesis.losses}L against
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: 8 }}><Italic size={16}>No real rival yet — beating everyone they face.</Italic></div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-12">
+        <div className="mb-6">
+          <SectionTag n={3} />
+          <HugeHeading>STANDOUT MATCHES</HugeHeading>
         </div>
-        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18, color: COLORS.inkMuted, marginTop: 12, maxWidth: 600, marginLeft: "auto", marginRight: "auto" }}>
-          — recent form, attendance, chemistry, best/worst performances, and the role-specific stat block are all on the way.
+        {!hasData ? (
+          <EmptyPanel title="NO MATCHES YET" sub="Highlights will appear once games are in the books." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <PerformanceCard h={standouts.best}  flavour="best"  onOpenMatch={onOpenMatch} />
+            <PerformanceCard h={standouts.worst} flavour="worst" onOpenMatch={onOpenMatch} />
+          </div>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <div className="mb-6">
+          <SectionTag n={4} />
+          <HugeHeading>MATCH LOG</HugeHeading>
+          <div className="mt-2"><Italic>— click any row for the full breakdown.</Italic></div>
         </div>
+        {!hasData ? (
+          <EmptyPanel title="NO MATCHES PLAYED" sub="Once they take the pitch, every game lands here." />
+        ) : (
+          <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, maxHeight: 480, overflowY: "auto" }}>
+            {history.map((h) => {
+              const m = h.match;
+              const oppCaptain = h.side === "home" ? m.awayCaptain : m.homeCaptain;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => onOpenMatch && onOpenMatch(m.id)}
+                  className="w-full grid grid-cols-12 gap-3 items-center px-5 py-4 text-left transition-colors"
+                  style={{ background: "transparent", border: "none", borderBottom: `1px solid ${COLORS.lineSoft}`, cursor: "pointer" }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bg3)}
+                  onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <div className="col-span-3 md:col-span-2">
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em" }}>MW {String(m.matchweek).padStart(2, "0")}</div>
+                    <div style={{ fontFamily: FONT_DISPLAY, fontSize: 16, color: COLORS.ink, marginTop: 2 }}>{formatDate(m.date).toUpperCase()}</div>
+                  </div>
+                  <div className="col-span-5 md:col-span-5">
+                    <span style={{ fontFamily: FONT_BODY, fontSize: 13, color: COLORS.inkMuted }}>vs </span>
+                    <span style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: COLORS.ink }}>{oppCaptain.toUpperCase()}'S XI</span>
+                    {h.isCaptain && (
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: COLORS.accent, letterSpacing: "0.15em", marginLeft: 8, padding: "2px 6px", border: `1px solid ${COLORS.accent}` }}>
+                        CAPTAIN
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-2 md:col-span-2 text-center">
+                    <span style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: h.result === "W" ? COLORS.accent : h.result === "L" ? COLORS.attacker : COLORS.ink }}>
+                      {h.forScore}—{h.agScore}
+                    </span>
+                  </div>
+                  <div className="col-span-2 md:col-span-2 text-right">
+                    {(h.goals + h.assists) === 0 ? (
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.1em" }}>—</span>
+                    ) : (
+                      <span style={{ fontFamily: FONT_DISPLAY, fontSize: 16, color: COLORS.accent }}>
+                        {h.goals > 0 && `${h.goals}G`}
+                        {h.goals > 0 && h.assists > 0 && " "}
+                        {h.assists > 0 && `${h.assists}A`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-12 md:col-span-1 flex md:justify-end items-center gap-2">
+                    <FormDot result={h.result} size={10} />
+                    <ArrowUpRight size={14} style={{ color: COLORS.inkMuted }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
 };
-
 // ——————————————————————————————————————————————————————————————
 // TOP PERFORMERS
 // ——————————————————————————————————————————————————————————————
@@ -566,16 +880,8 @@ const TopPerformers = ({ standings, matches }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// FIXTURES (scheduled matches)
+// FIXTURES
 // ——————————————————————————————————————————————————————————————
-const formatDate = (iso) => {
-  if (!iso) return "TBC";
-  try {
-    const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  } catch { return iso; }
-};
-
 const Fixtures = ({ matches }) => {
   const fixtures = matches.filter((m) => m.status === "scheduled");
   return (
@@ -669,7 +975,7 @@ const Results = ({ matches, onOpenMatch }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// MATCH DETAIL — Fotmob-style page
+// MATCH DETAIL
 // ——————————————————————————————————————————————————————————————
 const MatchDetail = ({ match, onBack }) => {
   const homeWin = match.homeScore > match.awayScore;
@@ -692,9 +998,7 @@ const MatchDetail = ({ match, onBack }) => {
       </button>
 
       <div className="grid grid-cols-12 gap-6">
-        {/* MAIN */}
         <div className="col-span-12 lg:col-span-8">
-          {/* Header card */}
           <div className="p-6 md:p-10" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
               <div className="flex items-center gap-3">
@@ -709,7 +1013,6 @@ const MatchDetail = ({ match, onBack }) => {
               </div>
             </div>
 
-            {/* Big score */}
             <div className="grid grid-cols-12 items-center gap-4 my-8">
               <div className="col-span-5 text-right">
                 <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 5vw, 48px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
@@ -731,7 +1034,6 @@ const MatchDetail = ({ match, onBack }) => {
               </div>
             </div>
 
-            {/* Goals split */}
             <div className="grid grid-cols-12 gap-4 mt-8 pt-8" style={{ borderTop: `1px solid ${COLORS.line}` }}>
               <div className="col-span-6 text-right">
                 {homeGoals.length === 0 ? (
@@ -756,7 +1058,6 @@ const MatchDetail = ({ match, onBack }) => {
             </div>
           </div>
 
-          {/* Lineups */}
           <div className="mt-6 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 16 }}>LINEUPS</div>
             <div className="grid grid-cols-2 gap-6">
@@ -796,7 +1097,6 @@ const MatchDetail = ({ match, onBack }) => {
             </div>
           </div>
 
-          {/* Notes */}
           {match.notes && (
             <div className="mt-6 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
               <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 12 }}>MATCH NOTES</div>
@@ -805,9 +1105,7 @@ const MatchDetail = ({ match, onBack }) => {
           )}
         </div>
 
-        {/* SIDEBAR */}
         <div className="col-span-12 lg:col-span-4 space-y-4">
-          {/* MOTM */}
           <div className="p-6 relative overflow-hidden" style={{ background: COLORS.accent, color: "#000" }}>
             <div className="absolute -right-4 -bottom-6" style={{ fontFamily: FONT_DISPLAY, fontSize: 140, lineHeight: 1, color: "rgba(0,0,0,0.08)" }}>★</div>
             <div className="flex items-center gap-2 relative z-10">
@@ -819,7 +1117,6 @@ const MatchDetail = ({ match, onBack }) => {
             </div>
           </div>
 
-          {/* Match facts */}
           <div className="p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 16 }}>MATCH FACTS</div>
             {[
@@ -835,7 +1132,6 @@ const MatchDetail = ({ match, onBack }) => {
             ))}
           </div>
 
-          {/* Top scorer in this match */}
           {(() => {
             const scorerCounts = {};
             match.goals.forEach((g) => {
@@ -861,14 +1157,10 @@ const MatchDetail = ({ match, onBack }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// ADMIN — Match form (used for creating + editing)
+// MATCH FORM HELPERS + TEAM ROSTER
 // ——————————————————————————————————————————————————————————————
 const newEmptyGoal = (team) => ({ team, scorer: "", assister: "", minute: "", isRinger: false, ringerName: "" });
 
-// ——————————————————————————————————————————————————————————————
-// TEAM ROSTER — squad chips + ringer input + 7-cap
-// (defined outside MatchForm so its local input state survives re-renders)
-// ——————————————————————————————————————————————————————————————
 const SQUAD_LIMIT = 7;
 
 const TeamRoster = ({ side, label, players, draft, toggleSquad, addRinger, removeRinger }) => {
@@ -906,7 +1198,6 @@ const TeamRoster = ({ side, label, players, draft, toggleSquad, addRinger, remov
         </div>
       </div>
 
-      {/* Player chips */}
       <div className="flex flex-wrap gap-2 mb-5">
         {players.map((p) => {
           const checked = squad.includes(p.name);
@@ -936,7 +1227,6 @@ const TeamRoster = ({ side, label, players, draft, toggleSquad, addRinger, remov
         })}
       </div>
 
-      {/* Ringers */}
       <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 8 }}>
         RINGERS · STAND-INS
       </div>
@@ -1003,7 +1293,9 @@ const TeamRoster = ({ side, label, players, draft, toggleSquad, addRinger, remov
     </div>
   );
 };
-
+// ——————————————————————————————————————————————————————————————
+// MATCH FORM
+// ——————————————————————————————————————————————————————————————
 const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }) => {
   const isNew = !match;
   const [draft, setDraft] = useState(() => {
@@ -1045,10 +1337,8 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
     const ringersKey = side === "home" ? "homeRingers" : "awayRingers";
     const arr = draft[key];
     if (arr.includes(name)) {
-      // remove
       update({ [key]: arr.filter((n) => n !== name) });
     } else {
-      // add — but enforce 7-cap
       const total = arr.length + (draft[ringersKey] || []).length;
       if (total >= SQUAD_LIMIT) return;
       update({ [key]: [...arr, name] });
@@ -1066,7 +1356,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
 
   const removeRinger = (side, name) => {
     const ringersKey = side === "home" ? "homeRingers" : "awayRingers";
-    // Also clear this ringer's name from any goals where they were credited
     const cleanedGoals = draft.goals.map((g) =>
       g.team === side && g.isRinger && g.ringerName === name
         ? { ...g, ringerName: "" }
@@ -1079,17 +1368,14 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
     });
   };
 
-  // Auto-derive scores from goals
   const derivedHome = draft.goals.filter((g) => g.team === "home").length;
   const derivedAway = draft.goals.filter((g) => g.team === "away").length;
 
   const save = () => {
-    // Force scores to match goals length
     const finalised = {
       ...draft,
       homeScore: derivedHome,
       awayScore: derivedAway,
-      // If completed, ensure captains are in their squads
       homeSquad: Array.from(new Set([...(draft.homeSquad || []), draft.homeCaptain].filter(Boolean))),
       awaySquad: Array.from(new Set([...(draft.awaySquad || []), draft.awayCaptain].filter(Boolean))),
       homeRingers: draft.homeRingers || [],
@@ -1116,7 +1402,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </div>
       </div>
 
-      {/* Basic */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Field label="Matchweek">
           <input type="number" value={draft.matchweek} onChange={(e) => update({ matchweek: parseInt(e.target.value) || 1 })} style={inputStyle} />
@@ -1132,7 +1417,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </Field>
       </div>
 
-      {/* Captains */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <Field label="Home Captain">
           <select value={draft.homeCaptain} onChange={(e) => update({ homeCaptain: e.target.value })} style={inputStyle}>
@@ -1148,7 +1432,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </Field>
       </div>
 
-      {/* Status */}
       <div className="mb-6">
         <Field label="Status">
           <div className="flex gap-2">
@@ -1168,7 +1451,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </Field>
       </div>
 
-      {/* Goals (only meaningful if completed) */}
       {draft.status === "completed" && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
@@ -1242,7 +1524,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </div>
       )}
 
-      {/* Squads + Ringers (only for completed) */}
       {draft.status === "completed" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <TeamRoster
@@ -1266,7 +1547,6 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
         </div>
       )}
 
-      {/* MOTM + notes */}
       {draft.status === "completed" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
           <Field label="Man of the Match">
@@ -1287,16 +1567,25 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
   );
 };
 
-// ────────────────────────────────────────────────
+// ——————————————————————————————————————————————————————————————
 // ROSTER MANAGER
-// ────────────────────────────────────────────────
+// ——————————————————————————————————————————————————————————————
+const miniBtnStyle = {
+  padding: "6px 10px",
+  fontSize: 11,
+  background: "transparent",
+  color: "#f5ecd9",
+  border: "1px solid #2a2a2a",
+  fontFamily: "Anton, sans-serif",
+  letterSpacing: "0.1em",
+  cursor: "pointer",
+};
+
 const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickname, deletePlayer, onBack }) => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("Midfielder");
   const [newNickname, setNewNickname] = useState("");
   const [busy, setBusy] = useState(false);
-
-  // Inline nickname editing
   const [editingNicknameFor, setEditingNicknameFor] = useState(null);
   const [editNicknameValue, setEditNicknameValue] = useState("");
 
@@ -1335,7 +1624,7 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
     setEditNicknameValue("");
   };
 
-  const roleColor = (role) => role === "Attacker" ? COLORS.attacker : role === "Defender" ? COLORS.defender : COLORS.mid;
+  const localRoleColor = (role) => role === "Attacker" ? COLORS.attacker : role === "Defender" ? COLORS.defender : COLORS.mid;
   const roleLabel = (role) => (role || "Midfielder").toUpperCase();
 
   return (
@@ -1349,7 +1638,6 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
         <Btn variant="ghost" onClick={onBack}>← BACK TO MATCHES</Btn>
       </div>
 
-      {/* Add player form */}
       <div className="mb-10 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 14 }}>NEW PLAYER</div>
         <div className="grid gap-3" style={{ gridTemplateColumns: "1.6fr 1.6fr 1.2fr auto", alignItems: "end" }}>
@@ -1387,7 +1675,6 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
         </div>
       </div>
 
-      {/* Roster table */}
       <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
         <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
           <div>#</div>
@@ -1428,7 +1715,7 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
                 )}
               </div>
               <div>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${roleColor(p.role)}`, color: roleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${localRoleColor(p.role)}`, color: localRoleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
               </div>
               <div style={{ textAlign: "right" }}>
                 {!isEditing && (
@@ -1452,16 +1739,6 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
   );
 };
 
-const miniBtnStyle = {
-  padding: "6px 10px",
-  fontSize: 11,
-  background: "transparent",
-  color: "#f5ecd9",
-  border: "1px solid #2a2a2a",
-  fontFamily: "Anton, sans-serif",
-  letterSpacing: "0.1em",
-  cursor: "pointer",
-};
 // ——————————————————————————————————————————————————————————————
 // ADMIN PANEL
 // ——————————————————————————————————————————————————————————————
@@ -1470,7 +1747,7 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
-  const [view, setView] = useState("matches"); // "matches" or "roster"
+  const [view, setView] = useState("matches");
   const [editingId, setEditingId] = useState(null);
   const [creatingNew, setCreatingNew] = useState(false);
 
@@ -1500,61 +1777,52 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   const currentMatch = matches.find((m) => m.id === editingId);
 
   const saveMatch = async (m) => {
-  // Convert camelCase → snake_case for Supabase
-  const dbRow = {
-    id: m.id,
-    matchweek: m.matchweek,
-    date: m.date || null,
-    time: m.time || null,
-    pitch: m.pitch || null,
-    status: m.status,
-    home_captain: m.homeCaptain || null,
-    away_captain: m.awayCaptain || null,
-    home_score: m.homeScore || 0,
-    away_score: m.awayScore || 0,
-    home_squad: m.homeSquad || [],
-    away_squad: m.awaySquad || [],
-    home_ringers: m.homeRingers || [],
-    away_ringers: m.awayRingers || [],
-    goals: m.goals || [],
-    motm: m.motm || null,
-    notes: m.notes || null,
+    const dbRow = {
+      id: m.id,
+      matchweek: m.matchweek,
+      date: m.date || null,
+      time: m.time || null,
+      pitch: m.pitch || null,
+      status: m.status,
+      home_captain: m.homeCaptain || null,
+      away_captain: m.awayCaptain || null,
+      home_score: m.homeScore || 0,
+      away_score: m.awayScore || 0,
+      home_squad: m.homeSquad || [],
+      away_squad: m.awaySquad || [],
+      home_ringers: m.homeRingers || [],
+      away_ringers: m.awayRingers || [],
+      goals: m.goals || [],
+      motm: m.motm || null,
+      notes: m.notes || null,
+    };
+
+    const { error } = await supabase.from("matches").upsert(dbRow);
+
+    if (error) {
+      console.error("Failed to save match:", error);
+      alert("Failed to save match — check console.");
+      return;
+    }
+
+    setMatches((prev) => {
+      const exists = prev.find((x) => x.id === m.id);
+      return exists ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m];
+    });
+    setEditingId(null);
+    setCreatingNew(false);
   };
 
-  const { error } = await supabase
-    .from("matches")
-    .upsert(dbRow);
-
-  if (error) {
-    console.error("Failed to save match:", error);
-    alert("Failed to save match — check console.");
-    return;
-  }
-
-  // Update local state so the UI reflects the change immediately
-  setMatches((prev) => {
-    const exists = prev.find((x) => x.id === m.id);
-    return exists ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m];
-  });
-  setEditingId(null);
-  setCreatingNew(false);
-};
-
-const deleteMatch = async (id) => {
-  const { error } = await supabase
-    .from("matches")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    console.error("Failed to delete match:", error);
-    alert("Failed to delete match — check console.");
-    return;
-  }
-
-  setMatches((prev) => prev.filter((m) => m.id !== id));
-  setEditingId(null);
-};
+  const deleteMatch = async (id) => {
+    const { error } = await supabase.from("matches").delete().eq("id", id);
+    if (error) {
+      console.error("Failed to delete match:", error);
+      alert("Failed to delete match — check console.");
+      return;
+    }
+    setMatches((prev) => prev.filter((m) => m.id !== id));
+    setEditingId(null);
+  };
 
   if (!session) {
     return (
@@ -1595,7 +1863,6 @@ const deleteMatch = async (id) => {
     );
   }
 
-  // Editing or creating
   if (editingId || creatingNew) {
     return (
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
@@ -1612,11 +1879,10 @@ const deleteMatch = async (id) => {
     );
   }
 
-  // If user clicked "Manage Roster", show that screen instead
   if (view === "roster") {
     return <RosterManager players={players} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} updatePlayerNickname={updatePlayerNickname} deletePlayer={deletePlayer} onBack={() => setView("matches")} />;
   }
-  // Default admin dashboard
+
   const scheduled = matches.filter((m) => m.status === "scheduled");
   const completed = matches.filter((m) => m.status === "completed").slice().reverse();
 
@@ -1629,9 +1895,8 @@ const deleteMatch = async (id) => {
           <Btn variant="ghost" onClick={signOut}>SIGN OUT</Btn>
           <Btn onClick={() => setCreatingNew(true)}><Plus size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />NEW MATCH</Btn>
         </div>
-        </div>
+      </div>
 
-      {/* Scheduled fixtures */}
       <div className="mb-10">
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 12 }}>SCHEDULED FIXTURES — UPDATE WHEN PLAYED</div>
         {scheduled.length === 0 ? (
@@ -1658,7 +1923,6 @@ const deleteMatch = async (id) => {
         )}
       </div>
 
-      {/* Completed matches */}
       <div>
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 12 }}>COMPLETED MATCHES — EDIT IF NEEDED</div>
         {completed.length === 0 ? (
@@ -1731,7 +1995,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
 
-  // Fetch players + matches from Supabase when the app loads
   useEffect(() => {
     async function loadData() {
       const { data: playersData, error: playersError } = await supabase
@@ -1747,7 +2010,6 @@ export default function App() {
       if (playersError) console.error("Failed to load players:", playersError);
       if (matchesError) console.error("Failed to load matches:", matchesError);
 
-      // Convert DB column names (snake_case) → JS field names (camelCase)
       const normalisedMatches = (matchesData || []).map((m) => ({
         id: m.id,
         matchweek: m.matchweek,
@@ -1774,28 +2036,25 @@ export default function App() {
     }
     loadData();
   }, []);
-  // Track Supabase auth session (login/logout)
-useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-  });
 
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setSession(session);
-  });
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
-  return () => subscription.unsubscribe();
-}, []);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const standings = useMemo(() => getStandings(players, matches), [players, matches]);
   const detailMatch = matchDetailId ? matches.find((m) => m.id === matchDetailId) : null;
   const selectedPlayer = selectedPlayerId ? players.find((p) => p.id === selectedPlayerId) : null;
 
-  // ────────────────────────────────────────────────
-  // PLAYER MANAGEMENT — talks to Supabase
-  // ────────────────────────────────────────────────
   async function addPlayer(name, role, nickname = "") {
     const trimmed = name.trim();
     const trimmedNick = nickname.trim();
@@ -1836,14 +2095,12 @@ useEffect(() => {
   }
 
   async function deletePlayer(name) {
-    // History is preserved — old matches still show their lineups, goals, assists.
-    // We just remove them from the active roster.
     const { error } = await supabase.from("players").delete().eq("name", name);
     if (error) { alert("Failed to delete player: " + error.message); return false; }
     setPlayers(players.filter((p) => p.name !== name));
     return true;
   }
-  // Reset detail views when changing tab
+
   useEffect(() => {
     setMatchDetailId(null);
     setSelectedPlayerId(null);
@@ -1861,6 +2118,7 @@ useEffect(() => {
           players={players}
           matches={matches}
           onBack={() => setSelectedPlayerId(null)}
+          onOpenMatch={(id) => setMatchDetailId(id)}
         />
       ) : detailMatch ? (
         <MatchDetail match={detailMatch} onBack={() => setMatchDetailId(null)} />
