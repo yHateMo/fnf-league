@@ -44,10 +44,6 @@ const COLORS = {
 const roleColor = (r) => r === "Attacker" ? COLORS.attacker : r === "Midfielder" ? COLORS.mid : COLORS.defender;
 const roleIcon  = (r) => r === "Attacker" ? Target     : r === "Midfielder" ? Zap       : Shield;
 
-const INITIAL_PLAYERS = [];
-const INITIAL_MATCHES = [];
-const ADMIN_PASSWORD = "admin123";
-
 // ——————————————————————————————————————————————————————————————
 // STATS
 // ——————————————————————————————————————————————————————————————
@@ -215,10 +211,8 @@ function getStandoutMatches(history) {
 }
 
 // ——————————————————————————————————————————————————————————————
-// ROLE-SPECIFIC STATS — Step 5
+// ROLE-SPECIFIC STATS
 // ——————————————————————————————————————————————————————————————
-
-// Attacker — leads with goals
 function getAttackerStats(history) {
   if (history.length === 0) return null;
   const goals   = history.reduce((s, h) => s + h.goals,   0);
@@ -237,7 +231,6 @@ function getAttackerStats(history) {
   };
 }
 
-// Midfielder — leads with assists
 function getMidfielderStats(history) {
   if (history.length === 0) return null;
   const goals   = history.reduce((s, h) => s + h.goals,   0);
@@ -263,8 +256,6 @@ function getMidfielderStats(history) {
   };
 }
 
-// Defender — two halves: defensive (bread & butter) + attacking (when he chips in)
-// FORTRESS tag = lowest conceded/game among defenders with >=3 games
 function getDefenderStats(playerName, history, allPlayers, allMatches) {
   if (history.length === 0) return null;
   const goals   = history.reduce((s, h) => s + h.goals,   0);
@@ -274,7 +265,6 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
   const concededPerGame = mp > 0 ? (totalConceded / mp).toFixed(2) : "0.00";
   const cleanSheets     = history.filter((h) => h.agScore === 0).length;
 
-  // Current unbeaten run — count newest matches until hitting an L
   let unbeatenRun = 0;
   for (const h of history) {
     if (h.result === "L") break;
@@ -285,7 +275,6 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
   const draws = history.filter((h) => h.result === "D").length;
   const unbeatenPct = mp > 0 ? Math.round(100 * (wins + draws) / mp) : 0;
 
-  // FORTRESS — lowest conceded/game across all defenders (min 3 games)
   const isFortress = (() => {
     if (mp < 3) return false;
     const defenders = (allPlayers || []).filter((p) => p.role === "Defender");
@@ -299,7 +288,7 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
     if (rates.length === 0) return false;
     const lowest = Math.min(...rates);
     const myRate = totalConceded / mp;
-    return Math.abs(myRate - lowest) < 0.001; // float-safe equality
+    return Math.abs(myRate - lowest) < 0.001;
   })();
 
   return {
@@ -313,6 +302,83 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
     gPlusA: goals + assists,
     unbeatenPct,
   };
+}
+
+// ——————————————————————————————————————————————————————————————
+// HEAD-TO-HEAD HELPERS (Step 6 — Player Comparison)
+// ——————————————————————————————————————————————————————————————
+
+// Matches where p1 and p2 were on OPPOSITE sides. Result is from p1's perspective.
+function getH2H(p1Name, p2Name, matches) {
+  const list = [];
+  for (const m of matches) {
+    if (m.status !== "completed") continue;
+    const p1Home = m.homeSquad.includes(p1Name);
+    const p1Away = m.awaySquad.includes(p1Name);
+    const p2Home = m.homeSquad.includes(p2Name);
+    const p2Away = m.awaySquad.includes(p2Name);
+    if (!(p1Home || p1Away) || !(p2Home || p2Away)) continue;
+    const opposite = (p1Home && p2Away) || (p1Away && p2Home);
+    if (!opposite) continue;
+
+    const p1For = p1Home ? m.homeScore : m.awayScore;
+    const p1Ag  = p1Home ? m.awayScore : m.homeScore;
+
+    let p1Goals = 0, p1Assists = 0, p2Goals = 0, p2Assists = 0;
+    for (const g of m.goals) {
+      if (!g.isRinger && g.scorer === p1Name) p1Goals++;
+      if (g.assister === p1Name) p1Assists++;
+      if (!g.isRinger && g.scorer === p2Name) p2Goals++;
+      if (g.assister === p2Name) p2Assists++;
+    }
+
+    let result;
+    if (p1For > p1Ag) result = "W";
+    else if (p1For === p1Ag) result = "D";
+    else result = "L";
+
+    list.push({
+      match: m,
+      p1Side: p1Home ? "home" : "away",
+      p1For, p1Ag,
+      result,
+      p1Goals, p1Assists, p2Goals, p2Assists,
+    });
+  }
+  return list.sort((a, b) => b.match.matchweek - a.match.matchweek);
+}
+
+// Matches where p1 and p2 were on the SAME side.
+function getTogether(p1Name, p2Name, matches) {
+  const list = [];
+  for (const m of matches) {
+    if (m.status !== "completed") continue;
+    const p1Home = m.homeSquad.includes(p1Name);
+    const p1Away = m.awaySquad.includes(p1Name);
+    const p2Home = m.homeSquad.includes(p2Name);
+    const p2Away = m.awaySquad.includes(p2Name);
+    const sameHome = p1Home && p2Home;
+    const sameAway = p1Away && p2Away;
+    if (!sameHome && !sameAway) continue;
+
+    const forScore = sameHome ? m.homeScore : m.awayScore;
+    const agScore  = sameHome ? m.awayScore : m.homeScore;
+    let result;
+    if (forScore > agScore) result = "W";
+    else if (forScore === agScore) result = "D";
+    else result = "L";
+
+    list.push({ match: m, forScore, agScore, result });
+  }
+  return list.sort((a, b) => b.match.matchweek - a.match.matchweek);
+}
+
+// Summarise a list of matches into W/D/L counts.
+function summariseRecord(list) {
+  const w = list.filter((x) => x.result === "W").length;
+  const d = list.filter((x) => x.result === "D").length;
+  const l = list.filter((x) => x.result === "L").length;
+  return { w, d, l, total: list.length };
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -422,8 +488,7 @@ const formatDate = (iso) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// ROLE STAT BLOCKS — Step 5
-// One reusable layout: huge heading + 4-stat grid, first stat is "hero"
+// ROLE STAT BLOCKS — used inside player profile
 // ——————————————————————————————————————————————————————————————
 const RoleStatBlock = ({ title, subtitle, stats }) => (
   <div className="mb-12">
@@ -509,10 +574,10 @@ const Ticker = ({ players, matches }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// HEADER
+// HEADER — adds "compare" tab between "top performers" and "fixtures"
 // ——————————————————————————————————————————————————————————————
 const Header = ({ tab, setTab, matches }) => {
-  const tabs = ["table", "top performers", "fixtures", "results", "admin"];
+  const tabs = ["table", "top performers", "compare", "fixtures", "results", "admin"];
   const completed = matches.filter((m) => m.status === "completed").length;
   return (
     <header className="w-full border-b" style={{ borderColor: COLORS.line, background: COLORS.bg }}>
@@ -713,7 +778,7 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER PROFILE — Step 5 (now with role-specific stat blocks)
+// PLAYER PROFILE — with role-specific stat blocks
 // ——————————————————————————————————————————————————————————————
 const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
   if (!h) {
@@ -758,7 +823,6 @@ const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
   );
 };
 
-// Build the right role block(s) for a player
 const RoleBlocks = ({ player, history, allPlayers, allMatches }) => {
   if (history.length === 0) {
     return (
@@ -812,7 +876,6 @@ const RoleBlocks = ({ player, history, allPlayers, allMatches }) => {
     );
   }
 
-  // Defender — two blocks
   const s = getDefenderStats(player.name, history, allPlayers, allMatches);
   return (
     <>
@@ -936,7 +999,6 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
         </div>
       </div>
 
-      {/* Role-specific stat block(s) — replaces the dashed placeholder */}
       <RoleBlocks player={player} history={history} allPlayers={players} allMatches={matches} />
 
       <div className="mb-12">
@@ -1122,6 +1184,452 @@ const TopPerformers = ({ standings, matches }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
+// PLAYER COMPARE — Step 6 (new)
+// ——————————————————————————————————————————————————————————————
+
+// Build the stat rows for the comparison based on shared role.
+function buildCompareRows(role, p1Name, p2Name, matches, allPlayers) {
+  const p1History = getPlayerMatchHistory(p1Name, matches);
+  const p2History = getPlayerMatchHistory(p2Name, matches);
+
+  const wins1 = p1History.filter((h) => h.result === "W").length;
+  const wins2 = p2History.filter((h) => h.result === "W").length;
+  const winPct1 = p1History.length > 0 ? Math.round(100 * wins1 / p1History.length) : 0;
+  const winPct2 = p2History.length > 0 ? Math.round(100 * wins2 / p2History.length) : 0;
+
+  if (role === "Attacker") {
+    const s1 = getAttackerStats(p1History) || { goals:0, assists:0, gPlusAPerGame:"0.00", goalInvolvement:0 };
+    const s2 = getAttackerStats(p2History) || { goals:0, assists:0, gPlusAPerGame:"0.00", goalInvolvement:0 };
+    return [
+      { label: "GOALS",            p1: s1.goals,                   p2: s2.goals,                   p1Display: String(s1.goals),       p2Display: String(s2.goals),       inverse: false },
+      { label: "ASSISTS",          p1: s1.assists,                 p2: s2.assists,                 p1Display: String(s1.assists),     p2Display: String(s2.assists),     inverse: false },
+      { label: "G+A / GAME",       p1: parseFloat(s1.gPlusAPerGame), p2: parseFloat(s2.gPlusAPerGame), p1Display: s1.gPlusAPerGame,     p2Display: s2.gPlusAPerGame,       inverse: false, decimals: 2 },
+      { label: "GOAL INVOLVEMENT", p1: s1.goalInvolvement,         p2: s2.goalInvolvement,         p1Display: `${s1.goalInvolvement}%`, p2Display: `${s2.goalInvolvement}%`, inverse: false, suffix: "%" },
+      { label: "WIN %",            p1: winPct1,                    p2: winPct2,                    p1Display: `${winPct1}%`,          p2Display: `${winPct2}%`,          inverse: false, suffix: "%" },
+    ];
+  }
+
+  if (role === "Midfielder") {
+    const s1 = getMidfielderStats(p1History) || { assists:0, gPlusA:0, unbeatenPct:0, captainWinPct:null, captainGames:0 };
+    const s2 = getMidfielderStats(p2History) || { assists:0, gPlusA:0, unbeatenPct:0, captainWinPct:null, captainGames:0 };
+    const cap1Display = s1.captainWinPct === null ? "—" : `${s1.captainWinPct}%`;
+    const cap2Display = s2.captainWinPct === null ? "—" : `${s2.captainWinPct}%`;
+    const nullCap = s1.captainWinPct === null || s2.captainWinPct === null;
+    return [
+      { label: "ASSISTS",    p1: s1.assists,     p2: s2.assists,     p1Display: String(s1.assists), p2Display: String(s2.assists), inverse: false },
+      { label: "G+A",        p1: s1.gPlusA,      p2: s2.gPlusA,      p1Display: String(s1.gPlusA),  p2Display: String(s2.gPlusA),  inverse: false },
+      { label: "UNBEATEN %", p1: s1.unbeatenPct, p2: s2.unbeatenPct, p1Display: `${s1.unbeatenPct}%`, p2Display: `${s2.unbeatenPct}%`, inverse: false, suffix: "%" },
+      { label: "CAPTAIN W%", p1: s1.captainWinPct ?? 0, p2: s2.captainWinPct ?? 0, p1Display: cap1Display, p2Display: cap2Display, inverse: false, suffix: "%", noWinner: nullCap },
+      { label: "WIN %",      p1: winPct1,        p2: winPct2,        p1Display: `${winPct1}%`,      p2Display: `${winPct2}%`,      inverse: false, suffix: "%" },
+    ];
+  }
+
+  // Defender
+  const s1 = getDefenderStats(p1Name, p1History, allPlayers, matches) || { concededPerGame:"0.00", totalConceded:0, cleanSheets:0, unbeatenPct:0, gPlusA:0 };
+  const s2 = getDefenderStats(p2Name, p2History, allPlayers, matches) || { concededPerGame:"0.00", totalConceded:0, cleanSheets:0, unbeatenPct:0, gPlusA:0 };
+  return [
+    { label: "CONCEDED / GAME", p1: parseFloat(s1.concededPerGame), p2: parseFloat(s2.concededPerGame), p1Display: s1.concededPerGame, p2Display: s2.concededPerGame, inverse: true,  decimals: 2 },
+    { label: "TOTAL CONCEDED",  p1: s1.totalConceded, p2: s2.totalConceded, p1Display: String(s1.totalConceded), p2Display: String(s2.totalConceded), inverse: true },
+    { label: "CLEAN SHEETS",    p1: s1.cleanSheets,   p2: s2.cleanSheets,   p1Display: String(s1.cleanSheets),   p2Display: String(s2.cleanSheets),   inverse: false },
+    { label: "UNBEATEN %",      p1: s1.unbeatenPct,   p2: s2.unbeatenPct,   p1Display: `${s1.unbeatenPct}%`,     p2Display: `${s2.unbeatenPct}%`,     inverse: false, suffix: "%" },
+    { label: "G+A",             p1: s1.gPlusA,        p2: s2.gPlusA,        p1Display: String(s1.gPlusA),        p2Display: String(s2.gPlusA),        inverse: false },
+  ];
+}
+
+// Three-pill role filter
+const RoleFilter = ({ role, setRole }) => (
+  <div style={{ display: "flex", border: `1px solid ${COLORS.line}`, width: "fit-content" }}>
+    {["Attacker", "Midfielder", "Defender"].map((r) => {
+      const active = role === r;
+      return (
+        <button
+          key={r}
+          onClick={() => setRole(r)}
+          style={{
+            padding: "8px 16px",
+            fontFamily: FONT_DISPLAY,
+            fontSize: 13,
+            letterSpacing: "0.1em",
+            background: active ? roleColor(r) : "transparent",
+            color: active ? "#000" : COLORS.ink,
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          {r.toUpperCase()}
+        </button>
+      );
+    })}
+  </div>
+);
+
+// Player picker card with native select + chevron + nickname
+const PlayerPicker = ({ label, value, onChange, options }) => {
+  const player = options.find((p) => p.id === value);
+  return (
+    <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, padding: 16 }}>
+      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>{label}</div>
+      <div style={{ position: "relative" }}>
+        <select
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontSize: 32,
+            color: COLORS.ink,
+            background: "transparent",
+            border: "none",
+            width: "100%",
+            padding: "0 24px 0 0",
+            appearance: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            cursor: "pointer",
+            outline: "none",
+            lineHeight: 1,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {options.map((p) => (
+            <option key={p.id} value={p.id} style={{ background: COLORS.bg, color: COLORS.ink }}>
+              {p.name.toUpperCase()}
+            </option>
+          ))}
+        </select>
+        <span style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", color: COLORS.inkMuted, pointerEvents: "none", fontSize: 14 }}>▾</span>
+      </div>
+      {player?.nickname ? (
+        <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginTop: 6 }}>
+          — "{player.nickname}"
+        </div>
+      ) : (
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, letterSpacing: "0.15em", marginTop: 8 }}>
+          NO NICKNAME
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Single stat comparison row
+const CompareRow = ({ row }) => {
+  let winner = "tie";
+  if (!row.noWinner && row.p1 !== row.p2) {
+    if (row.inverse) {
+      winner = row.p1 < row.p2 ? "p1" : "p2";
+    } else {
+      winner = row.p1 > row.p2 ? "p1" : "p2";
+    }
+  }
+
+  const diff = Math.abs(row.p1 - row.p2);
+  const decimals = row.decimals || 0;
+  const suffix = row.suffix || "";
+  const diffDisplay = decimals > 0 ? diff.toFixed(decimals) : String(diff);
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 180px 1fr",
+      alignItems: "center",
+      padding: "14px 16px",
+      background: COLORS.bg2,
+      border: `1px solid ${COLORS.line}`,
+    }}>
+      <div style={{ textAlign: "right" }}>
+        <div style={{
+          fontFamily: FONT_DISPLAY,
+          fontSize: 32,
+          color: winner === "p1" ? COLORS.accent : COLORS.ink,
+          lineHeight: 1,
+        }}>
+          {row.p1Display}
+        </div>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+          {row.label}
+        </div>
+        {winner !== "tie" && (
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.accent, letterSpacing: "0.15em", marginTop: 4 }}>
+            + {diffDisplay}{suffix}
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: "left" }}>
+        <div style={{
+          fontFamily: FONT_DISPLAY,
+          fontSize: 32,
+          color: winner === "p2" ? COLORS.accent : COLORS.ink,
+          lineHeight: 1,
+        }}>
+          {row.p2Display}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Record card (used for both H2H and Together)
+const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft, accentRight }) => (
+  <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, padding: 20 }}>
+    <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 16 }}>
+      / {title}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 48, color: record.w > 0 ? (accentLeft || COLORS.accent) : COLORS.inkMuted, lineHeight: 1 }}>
+          {record.w}
+        </div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
+          {leftLabel}
+        </div>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: COLORS.inkMuted, lineHeight: 1 }}>
+          {record.d}
+        </div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
+          DRAWS
+        </div>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: record.l > 0 ? (accentRight || COLORS.ink) : COLORS.inkMuted, lineHeight: 1 }}>
+          {record.l}
+        </div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
+          {rightLabel}
+        </div>
+      </div>
+    </div>
+    <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 13, color: COLORS.inkMuted, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${COLORS.lineSoft}` }}>
+      — {subtitle}
+    </div>
+  </div>
+);
+
+// H2H match list row (clickable)
+const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
+  const m = entry.match;
+  let titleNode;
+  if (entry.result === "W") {
+    titleNode = (<><span style={{ color: COLORS.accent }}>{p1Name.toUpperCase()}</span> beat {p2Name.toUpperCase()} · {entry.p1For}—{entry.p1Ag}</>);
+  } else if (entry.result === "L") {
+    titleNode = (<><span style={{ color: COLORS.ink }}>{p2Name.toUpperCase()}</span> beat {p1Name.toUpperCase()} · {entry.p1Ag}—{entry.p1For}</>);
+  } else {
+    titleNode = (<>DRAW · {entry.p1For}—{entry.p1Ag}</>);
+  }
+
+  return (
+    <button
+      onClick={() => onOpenMatch(m.id)}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "80px 1fr 100px 100px 30px",
+        alignItems: "center",
+        padding: "14px 16px",
+        background: "transparent",
+        border: "none",
+        borderBottom: `1px solid ${COLORS.lineSoft}`,
+        cursor: "pointer",
+        width: "100%",
+        textAlign: "left",
+        transition: "background 120ms",
+      }}
+      onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bg3)}
+      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em" }}>MW {String(m.matchweek).padStart(2, "0")}</div>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 14, color: COLORS.ink, marginTop: 2 }}>{formatDate(m.date).toUpperCase()}</div>
+      </div>
+      <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink }}>{titleNode}</div>
+      <div style={{ textAlign: "center", fontFamily: FONT_MONO, fontSize: 12, letterSpacing: "0.15em", color: (entry.p1Goals + entry.p1Assists) === 0 ? COLORS.inkMuted : COLORS.accent }}>
+        {(entry.p1Goals + entry.p1Assists) === 0 ? "—" : `${entry.p1Goals > 0 ? `${entry.p1Goals}G` : ""}${entry.p1Goals > 0 && entry.p1Assists > 0 ? " " : ""}${entry.p1Assists > 0 ? `${entry.p1Assists}A` : ""}`}
+      </div>
+      <div style={{ textAlign: "center", fontFamily: FONT_MONO, fontSize: 12, letterSpacing: "0.15em", color: (entry.p2Goals + entry.p2Assists) === 0 ? COLORS.inkMuted : COLORS.accent }}>
+        {(entry.p2Goals + entry.p2Assists) === 0 ? "—" : `${entry.p2Goals > 0 ? `${entry.p2Goals}G` : ""}${entry.p2Goals > 0 && entry.p2Assists > 0 ? " " : ""}${entry.p2Assists > 0 ? `${entry.p2Assists}A` : ""}`}
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <ArrowUpRight size={14} style={{ color: COLORS.inkMuted }} />
+      </div>
+    </button>
+  );
+};
+
+const PlayerCompare = ({ players, matches, onOpenMatch }) => {
+  const [role, setRole] = useState("Attacker");
+  const [p1Id, setP1Id] = useState(null);
+  const [p2Id, setP2Id] = useState(null);
+
+  const rolePlayers = useMemo(() => players.filter((p) => p.role === role), [players, role]);
+
+  // Default selections when role changes
+  useEffect(() => {
+    if (rolePlayers.length >= 2) {
+      setP1Id(rolePlayers[0].id);
+      setP2Id(rolePlayers[1].id);
+    } else if (rolePlayers.length === 1) {
+      setP1Id(rolePlayers[0].id);
+      setP2Id(null);
+    } else {
+      setP1Id(null);
+      setP2Id(null);
+    }
+  }, [role, players]);
+
+  // Prevent picking the same player on both sides
+  useEffect(() => {
+    if (p1Id && p1Id === p2Id) {
+      const other = rolePlayers.find((p) => p.id !== p1Id);
+      if (other) setP2Id(other.id);
+    }
+  }, [p1Id, p2Id, rolePlayers]);
+
+  const p1 = players.find((p) => p.id === p1Id);
+  const p2 = players.find((p) => p.id === p2Id);
+
+  const h2hList = useMemo(
+    () => (p1 && p2) ? getH2H(p1.name, p2.name, matches) : [],
+    [p1, p2, matches]
+  );
+  const togetherList = useMemo(
+    () => (p1 && p2) ? getTogether(p1.name, p2.name, matches) : [],
+    [p1, p2, matches]
+  );
+  const h2hRecord = useMemo(() => summariseRecord(h2hList), [h2hList]);
+  const togetherRecord = useMemo(() => summariseRecord(togetherList), [togetherList]);
+
+  const compareRows = useMemo(
+    () => (p1 && p2) ? buildCompareRows(role, p1.name, p2.name, matches, players) : [],
+    [p1, p2, role, matches, players]
+  );
+
+  // Options for each dropdown — exclude the OTHER player's selection
+  const p1Options = rolePlayers.filter((p) => p.id !== p2Id);
+  const p2Options = rolePlayers.filter((p) => p.id !== p1Id);
+
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+      <div className="mb-8">
+        <SectionTag n={3} label="compare" />
+        <HugeHeading>PLAYER COMPARISON</HugeHeading>
+        <div className="mt-2"><Italic>— pick two of the same role and let the numbers fight it out.</Italic></div>
+      </div>
+
+      <div className="mb-6">
+        <RoleFilter role={role} setRole={setRole} />
+      </div>
+
+      {rolePlayers.length < 2 ? (
+        <EmptyPanel
+          title={rolePlayers.length === 0 ? `NO ${role.toUpperCase()}S` : "NEED 1 MORE"}
+          sub={rolePlayers.length === 0
+            ? `Add two ${role.toLowerCase()}s in the Admin tab to compare.`
+            : `Add another ${role.toLowerCase()} in the Admin tab to compare.`}
+        />
+      ) : !p1 || !p2 ? (
+        <EmptyPanel title="LOADING" sub="Picking the first two..." />
+      ) : (
+        <>
+          {/* Player pickers */}
+          <div className="grid items-center gap-4 mb-8" style={{ gridTemplateColumns: "1fr 60px 1fr" }}>
+            <PlayerPicker
+              label="PLAYER 1"
+              value={p1Id}
+              onChange={setP1Id}
+              options={p1Options.length > 0 ? p1Options : rolePlayers}
+            />
+            <div style={{ textAlign: "center", fontFamily: FONT_DISPLAY, fontSize: 24, color: COLORS.accent, letterSpacing: "0.05em" }}>
+              VS
+            </div>
+            <PlayerPicker
+              label="PLAYER 2"
+              value={p2Id}
+              onChange={setP2Id}
+              options={p2Options.length > 0 ? p2Options : rolePlayers}
+            />
+          </div>
+
+          {/* Two record cards side-by-side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <RecordCard
+              title="HEAD-TO-HEAD"
+              record={h2hRecord}
+              leftLabel={`${p1.name.toUpperCase()} W`}
+              rightLabel={`${p2.name.toUpperCase()} W`}
+              accentLeft={COLORS.accent}
+              accentRight={COLORS.ink}
+              subtitle={
+                h2hRecord.total === 0
+                  ? "never faced each other yet."
+                  : h2hRecord.total === 1
+                  ? "1 match on opposite sides."
+                  : `${h2hRecord.total} matches on opposite sides.`
+              }
+            />
+            <RecordCard
+              title="ON THE SAME TEAM"
+              record={togetherRecord}
+              leftLabel="WINS"
+              rightLabel="LOSSES"
+              accentLeft={COLORS.accent}
+              accentRight={COLORS.attacker}
+              subtitle={
+                togetherRecord.total === 0
+                  ? "never played together yet."
+                  : `${togetherRecord.total} matches together · ${Math.round(100 * togetherRecord.w / togetherRecord.total)}% win rate.`
+              }
+            />
+          </div>
+
+          {/* Stat-by-stat */}
+          <div className="mb-3">
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+              / {role.toUpperCase()} STATS
+            </div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, lineHeight: 1, color: COLORS.ink, marginTop: 6 }}>
+              STAT-BY-STAT
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 mb-8">
+            {compareRows.map((row) => (
+              <CompareRow key={row.label} row={row} />
+            ))}
+          </div>
+
+          {/* H2H match list */}
+          <div className="mb-3">
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+              / HEAD-TO-HEAD · MATCH LIST
+            </div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, lineHeight: 1, color: COLORS.ink, marginTop: 6 }}>
+              WHEN THEY CLASHED
+            </div>
+            <div className="mt-2"><Italic size={14}>— click any row for the full match.</Italic></div>
+          </div>
+          {h2hList.length === 0 ? (
+            <EmptyPanel title="NO MATCHES YET" sub={`${p1.name} and ${p2.name} have not faced each other.`} />
+          ) : (
+            <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+              {h2hList.map((entry) => (
+                <H2HMatchRow
+                  key={entry.match.id}
+                  entry={entry}
+                  p1Name={p1.name}
+                  p2Name={p2.name}
+                  onOpenMatch={onOpenMatch}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+};
+
+// ——————————————————————————————————————————————————————————————
 // FIXTURES
 // ——————————————————————————————————————————————————————————————
 const Fixtures = ({ matches }) => {
@@ -1129,7 +1637,7 @@ const Fixtures = ({ matches }) => {
   return (
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
       <div className="mb-8">
-        <SectionTag n={3} />
+        <SectionTag n={4} />
         <HugeHeading>UPCOMING FIXTURES</HugeHeading>
       </div>
       {fixtures.length === 0 ? (
@@ -1170,7 +1678,7 @@ const Results = ({ matches, onOpenMatch }) => {
   return (
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
       <div className="mb-8">
-        <SectionTag n={4} />
+        <SectionTag n={5} />
         <HugeHeading>RECENT RESULTS</HugeHeading>
         <div className="mt-2"><Italic>— click any match for the full breakdown.</Italic></div>
       </div>
@@ -1873,7 +2381,7 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div>
-          <SectionTag n={5} label="roster" />
+          <SectionTag n={6} label="roster" />
           <HugeHeading>MANAGE ROSTER</HugeHeading>
           <Italic size={18} color={COLORS.inkMuted}>— {players.length} players on the books</Italic>
         </div>
@@ -2069,7 +2577,7 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   if (!session) {
     return (
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
-        <div className="mb-8"><SectionTag n={5} /><HugeHeading>ADMIN ACCESS</HugeHeading></div>
+        <div className="mb-8"><SectionTag n={6} /><HugeHeading>ADMIN ACCESS</HugeHeading></div>
         <div className="max-w-md p-8" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
           <div className="flex items-center gap-2 mb-6" style={{ color: COLORS.accent }}>
             <Lock size={16} />
@@ -2108,7 +2616,7 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   if (editingId || creatingNew) {
     return (
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
-        <div className="mb-8"><SectionTag n={5} label="match editor" /><HugeHeading>{creatingNew ? "NEW FIXTURE" : "UPDATE MATCH"}</HugeHeading></div>
+        <div className="mb-8"><SectionTag n={6} label="match editor" /><HugeHeading>{creatingNew ? "NEW FIXTURE" : "UPDATE MATCH"}</HugeHeading></div>
         <MatchForm
           players={players}
           match={creatingNew ? null : currentMatch}
@@ -2131,7 +2639,7 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   return (
     <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
-        <div><SectionTag n={5} label="dashboard" /><HugeHeading>ADMIN DASHBOARD</HugeHeading></div>
+        <div><SectionTag n={6} label="dashboard" /><HugeHeading>ADMIN DASHBOARD</HugeHeading></div>
         <div className="flex gap-2">
           <Btn variant="ghost" onClick={() => setView(view === "matches" ? "roster" : "matches")}>{view === "matches" ? "MANAGE ROSTER" : "← BACK TO MATCHES"}</Btn>
           <Btn variant="ghost" onClick={signOut}>SIGN OUT</Btn>
@@ -2206,7 +2714,7 @@ const Footer = ({ players }) => (
       </div>
       <div className="col-span-6 md:col-span-3">
         <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 12 }}>SECTIONS</div>
-        {["The Table", "Top Performers", "Fixtures", "Results"].map((s) => (
+        {["The Table", "Top Performers", "Compare", "Fixtures", "Results"].map((s) => (
           <div key={s} style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink, marginBottom: 6 }}>{s}</div>
         ))}
       </div>
@@ -2225,8 +2733,7 @@ const Footer = ({ players }) => (
 );
 
 // ——————————————————————————————————————————————————————————————
-// APP — match-detail check moved BEFORE selectedPlayer to fix
-// the "click match in profile, nothing happens" bug
+// APP — adds "compare" tab handling. Match-detail takes routing priority.
 // ——————————————————————————————————————————————————————————————
 export default function App() {
   useFonts();
@@ -2235,7 +2742,6 @@ export default function App() {
   const [tab, setTab] = useState("table");
   const [matchDetailId, setMatchDetailId] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
 
   useEffect(() => {
@@ -2275,7 +2781,6 @@ export default function App() {
 
       setPlayers(playersData || []);
       setMatches(normalisedMatches);
-      setLoading(false);
     }
     loadData();
   }, []);
@@ -2384,6 +2889,13 @@ export default function App() {
             </>
           )}
           {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
+          {tab === "compare" && (
+            <PlayerCompare
+              players={players}
+              matches={matches}
+              onOpenMatch={(id) => setMatchDetailId(id)}
+            />
+          )}
           {tab === "fixtures" && <Fixtures matches={matches} />}
           {tab === "results" && <Results matches={matches} onOpenMatch={(id) => setMatchDetailId(id)} />}
           {tab === "admin" && <Admin players={players} matches={matches} setMatches={setMatches} session={session} addPlayer={addPlayer} updatePlayerRole={updatePlayerRole} updatePlayerNickname={updatePlayerNickname} deletePlayer={deletePlayer} />}
