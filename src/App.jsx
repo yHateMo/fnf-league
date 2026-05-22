@@ -1256,39 +1256,47 @@ const RoleFilter = ({ role, setRole }) => (
 );
 
 const PlayerPicker = ({ label, value, onChange, options }) => {
-  const player = options.find((p) => p.id === value);
+  const [open, setOpen] = useState(false);
+  const player = options.find((p) => String(p.id) === String(value));
+
+  // Close the menu when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+
   return (
-    <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, padding: 16 }}>
+    <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, padding: 16, position: "relative" }}>
       <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 6 }}>{label}</div>
-      <div style={{ position: "relative" }}>
-        <select
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            fontFamily: FONT_DISPLAY,
-            fontSize: 24,
-            color: COLORS.ink,
-            background: "transparent",
-            border: "none",
-            width: "100%",
-            padding: "0 24px 0 0",
-            appearance: "none",
-            WebkitAppearance: "none",
-            MozAppearance: "none",
-            cursor: "pointer",
-            outline: "none",
-            lineHeight: 1,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {options.map((p) => (
-            <option key={p.id} value={p.id} style={{ background: COLORS.bg, color: COLORS.ink, fontFamily: "system-ui", fontSize: 14, fontWeight: "normal" }}>
-              {p.name.toUpperCase()}
-            </option>
-          ))}
-        </select>
-        <span style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", color: COLORS.inkMuted, pointerEvents: "none", fontSize: 14 }}>▾</span>
-      </div>
+
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontSize: 24,
+          color: COLORS.ink,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          margin: 0,
+          width: "100%",
+          textAlign: "left",
+          cursor: "pointer",
+          letterSpacing: "0.02em",
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <span>{player ? player.name.toUpperCase() : "—"}</span>
+        <span style={{ color: COLORS.inkMuted, fontSize: 14 }}>{open ? "▴" : "▾"}</span>
+      </button>
+
       {player?.nickname ? (
         <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginTop: 6 }}>
           — "{player.nickname}"
@@ -1296,6 +1304,59 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
       ) : (
         <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, letterSpacing: "0.15em", marginTop: 8 }}>
           NO NICKNAME
+        </div>
+      )}
+
+      {open && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "calc(100% + 4px)",
+            background: COLORS.bg,
+            border: `1px solid ${COLORS.line}`,
+            zIndex: 50,
+            maxHeight: 240,
+            overflowY: "auto",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          }}
+        >
+          {options.map((p) => {
+            const selected = String(p.id) === String(value);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { onChange(String(p.id)); setOpen(false); }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 14px",
+                  background: selected ? COLORS.bg2 : "transparent",
+                  border: "none",
+                  borderBottom: `1px solid ${COLORS.lineSoft}`,
+                  color: selected ? COLORS.accent : COLORS.ink,
+                  fontFamily: FONT_MONO,
+                  fontSize: 13,
+                  letterSpacing: "0.1em",
+                  cursor: "pointer",
+                  transition: "background 120ms",
+                }}
+                onMouseOver={(e) => { if (!selected) e.currentTarget.style.background = COLORS.bg2; }}
+                onMouseOut={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}
+              >
+                {p.name.toUpperCase()}
+                {p.nickname && (
+                  <span style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 12, color: COLORS.inkMuted, marginLeft: 8, letterSpacing: 0, textTransform: "none" }}>
+                    — "{p.nickname}"
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
