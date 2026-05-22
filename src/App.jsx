@@ -305,10 +305,8 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
 }
 
 // ——————————————————————————————————————————————————————————————
-// HEAD-TO-HEAD HELPERS (Step 6 — Player Comparison)
+// HEAD-TO-HEAD HELPERS (Player Comparison)
 // ——————————————————————————————————————————————————————————————
-
-// Matches where p1 and p2 were on OPPOSITE sides. Result is from p1's perspective.
 function getH2H(p1Name, p2Name, matches) {
   const list = [];
   for (const m of matches) {
@@ -348,7 +346,6 @@ function getH2H(p1Name, p2Name, matches) {
   return list.sort((a, b) => b.match.matchweek - a.match.matchweek);
 }
 
-// Matches where p1 and p2 were on the SAME side.
 function getTogether(p1Name, p2Name, matches) {
   const list = [];
   for (const m of matches) {
@@ -373,7 +370,6 @@ function getTogether(p1Name, p2Name, matches) {
   return list.sort((a, b) => b.match.matchweek - a.match.matchweek);
 }
 
-// Summarise a list of matches into W/D/L counts.
 function summariseRecord(list) {
   const w = list.filter((x) => x.result === "W").length;
   const d = list.filter((x) => x.result === "D").length;
@@ -574,7 +570,7 @@ const Ticker = ({ players, matches }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// HEADER — adds "compare" tab between "top performers" and "fixtures"
+// HEADER
 // ——————————————————————————————————————————————————————————————
 const Header = ({ tab, setTab, matches }) => {
   const tabs = ["table", "top performers", "compare", "fixtures", "results", "admin"];
@@ -778,7 +774,7 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER PROFILE — with role-specific stat blocks
+// PLAYER PROFILE
 // ——————————————————————————————————————————————————————————————
 const PerformanceCard = ({ h, flavour, onOpenMatch }) => {
   if (!h) {
@@ -1184,10 +1180,8 @@ const TopPerformers = ({ standings, matches }) => {
 };
 
 // ——————————————————————————————————————————————————————————————
-// PLAYER COMPARE — Step 6 (new)
+// PLAYER COMPARE
 // ——————————————————————————————————————————————————————————————
-
-// Build the stat rows for the comparison based on shared role.
 function buildCompareRows(role, p1Name, p2Name, matches, allPlayers) {
   const p1History = getPlayerMatchHistory(p1Name, matches);
   const p2History = getPlayerMatchHistory(p2Name, matches);
@@ -1224,7 +1218,6 @@ function buildCompareRows(role, p1Name, p2Name, matches, allPlayers) {
     ];
   }
 
-  // Defender
   const s1 = getDefenderStats(p1Name, p1History, allPlayers, matches) || { concededPerGame:"0.00", totalConceded:0, cleanSheets:0, unbeatenPct:0, gPlusA:0 };
   const s2 = getDefenderStats(p2Name, p2History, allPlayers, matches) || { concededPerGame:"0.00", totalConceded:0, cleanSheets:0, unbeatenPct:0, gPlusA:0 };
   return [
@@ -1236,7 +1229,6 @@ function buildCompareRows(role, p1Name, p2Name, matches, allPlayers) {
   ];
 }
 
-// Three-pill role filter
 const RoleFilter = ({ role, setRole }) => (
   <div style={{ display: "flex", border: `1px solid ${COLORS.line}`, width: "fit-content" }}>
     {["Attacker", "Midfielder", "Defender"].map((r) => {
@@ -1263,7 +1255,6 @@ const RoleFilter = ({ role, setRole }) => (
   </div>
 );
 
-// Player picker card with native select + chevron + nickname
 const PlayerPicker = ({ label, value, onChange, options }) => {
   const player = options.find((p) => p.id === value);
   return (
@@ -1275,7 +1266,7 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
           onChange={(e) => onChange(e.target.value)}
           style={{
             fontFamily: FONT_DISPLAY,
-            fontSize: 32,
+            fontSize: 24,
             color: COLORS.ink,
             background: "transparent",
             border: "none",
@@ -1291,7 +1282,7 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
           }}
         >
           {options.map((p) => (
-            <option key={p.id} value={p.id} style={{ background: COLORS.bg, color: COLORS.ink }}>
+            <option key={p.id} value={p.id} style={{ background: COLORS.bg, color: COLORS.ink, fontFamily: "system-ui", fontSize: 14, fontWeight: "normal" }}>
               {p.name.toUpperCase()}
             </option>
           ))}
@@ -1311,7 +1302,6 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
   );
 };
 
-// Single stat comparison row
 const CompareRow = ({ row }) => {
   let winner = "tie";
   if (!row.noWinner && row.p1 !== row.p2) {
@@ -1370,7 +1360,6 @@ const CompareRow = ({ row }) => {
   );
 };
 
-// Record card (used for both H2H and Together)
 const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft, accentRight }) => (
   <div style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, padding: 20 }}>
     <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.2em", marginBottom: 16 }}>
@@ -1408,7 +1397,6 @@ const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft
   </div>
 );
 
-// H2H match list row (clickable)
 const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
   const m = entry.match;
   let titleNode;
@@ -1459,35 +1447,38 @@ const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
 
 const PlayerCompare = ({ players, matches, onOpenMatch }) => {
   const [role, setRole] = useState("Attacker");
-  const [p1Id, setP1Id] = useState(null);
-  const [p2Id, setP2Id] = useState(null);
+  const [userP1Id, setUserP1Id] = useState(null);
+  const [userP2Id, setUserP2Id] = useState(null);
 
   const rolePlayers = useMemo(() => players.filter((p) => p.role === role), [players, role]);
 
-  // Default selections when role changes
-  useEffect(() => {
-    if (rolePlayers.length >= 2) {
-      setP1Id(rolePlayers[0].id);
-      setP2Id(rolePlayers[1].id);
-    } else if (rolePlayers.length === 1) {
-      setP1Id(rolePlayers[0].id);
-      setP2Id(null);
-    } else {
-      setP1Id(null);
-      setP2Id(null);
+  // Derived selections — always valid as long as the roster has data
+  const p1 = useMemo(() => {
+    if (userP1Id != null) {
+      const found = rolePlayers.find((p) => String(p.id) === String(userP1Id));
+      if (found) return found;
     }
-  }, [role, players]);
+    return rolePlayers[0] || null;
+  }, [userP1Id, rolePlayers]);
 
-  // Prevent picking the same player on both sides
-  useEffect(() => {
-    if (p1Id && p1Id === p2Id) {
-      const other = rolePlayers.find((p) => p.id !== p1Id);
-      if (other) setP2Id(other.id);
+  const p2 = useMemo(() => {
+    if (userP2Id != null && String(userP2Id) !== String(p1?.id)) {
+      const found = rolePlayers.find((p) => String(p.id) === String(userP2Id));
+      if (found) return found;
     }
-  }, [p1Id, p2Id, rolePlayers]);
+    return rolePlayers.find((p) => p.id !== p1?.id) || null;
+  }, [userP2Id, rolePlayers, p1]);
 
-  const p1 = players.find((p) => p.id === p1Id);
-  const p2 = players.find((p) => p.id === p2Id);
+  const p1Id = p1?.id ?? null;
+  const p2Id = p2?.id ?? null;
+  const setP1Id = setUserP1Id;
+  const setP2Id = setUserP2Id;
+
+  // Reset user picks when role changes
+  useEffect(() => {
+    setUserP1Id(null);
+    setUserP2Id(null);
+  }, [role]);
 
   const h2hList = useMemo(
     () => (p1 && p2) ? getH2H(p1.name, p2.name, matches) : [],
@@ -1505,7 +1496,6 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
     [p1, p2, role, matches, players]
   );
 
-  // Options for each dropdown — exclude the OTHER player's selection
   const p1Options = rolePlayers.filter((p) => p.id !== p2Id);
   const p2Options = rolePlayers.filter((p) => p.id !== p1Id);
 
@@ -1528,9 +1518,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
             ? `Add two ${role.toLowerCase()}s in the Admin tab to compare.`
             : `Add another ${role.toLowerCase()} in the Admin tab to compare.`}
         />
-      ) : !p1 || !p2 ? (
-        <EmptyPanel title="LOADING" sub="Picking the first two..." />
-      ) : (
+      ) : !p1 || !p2 ? null : (
         <>
           {/* Player pickers */}
           <div className="grid items-center gap-4 mb-8" style={{ gridTemplateColumns: "1fr 60px 1fr" }}>
@@ -1551,7 +1539,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
             />
           </div>
 
-          {/* Two record cards side-by-side */}
+          {/* Two record cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <RecordCard
               title="HEAD-TO-HEAD"
@@ -1588,7 +1576,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
               / {role.toUpperCase()} STATS
             </div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, lineHeight: 1, color: COLORS.ink, marginTop: 6 }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, lineHeight: 1, color: COLORS.ink, marginTop: 6, letterSpacing: "0.04em" }}>
               STAT-BY-STAT
             </div>
           </div>
@@ -1603,7 +1591,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
               / HEAD-TO-HEAD · MATCH LIST
             </div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, lineHeight: 1, color: COLORS.ink, marginTop: 6 }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, lineHeight: 1, color: COLORS.ink, marginTop: 6, letterSpacing: "0.04em" }}>
               WHEN THEY CLASHED
             </div>
             <div className="mt-2"><Italic size={14}>— click any row for the full match.</Italic></div>
@@ -2733,7 +2721,7 @@ const Footer = ({ players }) => (
 );
 
 // ——————————————————————————————————————————————————————————————
-// APP — adds "compare" tab handling. Match-detail takes routing priority.
+// APP
 // ——————————————————————————————————————————————————————————————
 export default function App() {
   useFonts();
