@@ -26,6 +26,21 @@ const FONT_BODY    = "'Manrope', system-ui, sans-serif";
 const FONT_MONO    = "'JetBrains Mono', ui-monospace, monospace";
 
 // ——————————————————————————————————————————————————————————————
+// MOBILE DETECTION (Step 7.4)
+// ——————————————————————————————————————————————————————————————
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+// ——————————————————————————————————————————————————————————————
 // DESIGN TOKENS
 // ——————————————————————————————————————————————————————————————
 const COLORS = {
@@ -312,7 +327,7 @@ function getDefenderStats(playerName, history, allPlayers, allMatches) {
 }
 
 // ——————————————————————————————————————————————————————————————
-// HEAD-TO-HEAD HELPERS (Player Comparison)
+// HEAD-TO-HEAD HELPERS
 // ——————————————————————————————————————————————————————————————
 function getH2H(p1Name, p2Name, matches) {
   const list = [];
@@ -406,7 +421,7 @@ const SectionTag = ({ n, label }) => (
 );
 
 const HugeHeading = ({ children }) => (
-  <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 56, lineHeight: 0.95, color: COLORS.ink, marginTop: 8 }}>
+  <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(36px, 7vw, 56px)", lineHeight: 0.95, color: COLORS.ink, marginTop: 8 }}>
     {children}
   </h2>
 );
@@ -510,7 +525,7 @@ const RoleStatBlock = ({ title, subtitle, stats }) => (
         return (
           <div
             key={s.label}
-            className="p-6 relative"
+            className="p-4 md:p-6 relative"
             style={{
               background: COLORS.bg2,
               border: `1px solid ${isHero ? COLORS.accent : COLORS.line}`,
@@ -533,7 +548,7 @@ const RoleStatBlock = ({ title, subtitle, stats }) => (
             </div>
             <div style={{
               fontFamily: FONT_DISPLAY,
-              fontSize: isHero ? 64 : 40,
+              fontSize: isHero ? "clamp(40px, 8vw, 64px)" : "clamp(28px, 6vw, 40px)",
               color: s.value === "—" ? COLORS.inkMuted : (isHero ? COLORS.accent : COLORS.ink),
               lineHeight: 1,
             }}>
@@ -586,7 +601,7 @@ const Header = ({ tab, setTab, matches }) => {
   const completed = matches.filter((m) => m.status === "completed").length;
   return (
     <header className="w-full border-b" style={{ borderColor: COLORS.line, background: COLORS.bg }}>
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-10">
         <div className="flex items-center justify-between py-5">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 flex items-center justify-center" style={{ background: COLORS.accent, color: "#000" }}>
@@ -605,11 +620,11 @@ const Header = ({ tab, setTab, matches }) => {
         </div>
       </div>
       <nav className="border-t" style={{ borderColor: COLORS.line }}>
-        <div className="max-w-[1400px] mx-auto px-6 md:px-10 flex gap-1 overflow-x-auto">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-10 flex gap-1 overflow-x-auto">
           {tabs.map((t) => {
             const active = tab === t;
             return (
-              <button key={t} onClick={() => setTab(t)} className="relative py-4 px-4 transition-colors whitespace-nowrap" style={{ fontFamily: FONT_DISPLAY, letterSpacing: "0.08em", fontSize: 15, color: active ? COLORS.ink : COLORS.inkMuted, background: "transparent", border: "none", cursor: "pointer" }}>
+              <button key={t} onClick={() => setTab(t)} className="relative py-4 px-3 md:px-4 transition-colors whitespace-nowrap" style={{ fontFamily: FONT_DISPLAY, letterSpacing: "0.08em", fontSize: 15, color: active ? COLORS.ink : COLORS.inkMuted, background: "transparent", border: "none", cursor: "pointer" }}>
                 {t.toUpperCase()}
                 {active && <span className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ background: COLORS.accent }} />}
               </button>
@@ -630,13 +645,13 @@ const Hero = ({ players, matches, standings }) => {
 
   return (
     <section className="w-full" style={{ background: COLORS.bg }}>
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 pt-14 pb-10 grid grid-cols-12 gap-6 items-end">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-10 pt-10 md:pt-14 pb-10 grid grid-cols-12 gap-6 items-end">
         <div className="col-span-12 md:col-span-8">
           <div className="flex items-center gap-3 mb-5" style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
             <span style={{ width: 24, height: 1, background: COLORS.inkMuted, display: "inline-block" }} />
             {noMatches ? "NEW SEASON — LEAGUE OVERVIEW" : `MATCHWEEK ${completed.length} — LEAGUE OVERVIEW`}
           </div>
-          <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(60px, 10vw, 148px)", lineHeight: 0.85, color: COLORS.ink, letterSpacing: "-0.01em" }}>
+          <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(48px, 10vw, 148px)", lineHeight: 0.85, color: COLORS.ink, letterSpacing: "-0.01em" }}>
             {noMatches ? "FRESH SLATE." : "THE TABLE"}<br />
             <span style={{ color: COLORS.accent, fontFamily: FONT_SERIF, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.02em" }}>
               {noMatches ? "everyone's on nought." : "doesn't lie."}
@@ -665,7 +680,7 @@ const Hero = ({ players, matches, standings }) => {
               </>
             ) : (
               <>
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 72, lineHeight: 0.9, marginTop: 10, letterSpacing: "-0.01em" }}>{leader.name.toUpperCase()}</div>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(48px, 9vw, 72px)", lineHeight: 0.9, marginTop: 10, letterSpacing: "-0.01em" }}>{leader.name.toUpperCase()}</div>
                 <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 20, marginTop: 4 }}>— {leader.role.toLowerCase()}</div>
               </>
             )}
@@ -697,7 +712,7 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
   const noMatches = matches.filter(m => m.status === "completed").length === 0;
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-6 mb-8">
         <div>
           <SectionTag n={1} />
@@ -708,14 +723,14 @@ const LeagueTable = ({ standings, matches, onOpenPlayer }) => {
           {roles.map((r) => {
             const active = filter === r;
             return (
-              <button key={r} onClick={() => setFilter(r)} className="px-4 py-2 transition-colors" style={{ fontFamily: FONT_DISPLAY, fontSize: 13, letterSpacing: "0.1em", background: active ? COLORS.accent : "transparent", color: active ? "#000" : COLORS.ink, border: "none", cursor: "pointer" }}>
+              <button key={r} onClick={() => setFilter(r)} className="px-3 md:px-4 py-2 transition-colors" style={{ fontFamily: FONT_DISPLAY, fontSize: 13, letterSpacing: "0.1em", background: active ? COLORS.accent : "transparent", color: active ? "#000" : COLORS.ink, border: "none", cursor: "pointer" }}>
                 {r.toUpperCase()}
               </button>
             );
           })}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
         <table className="w-full border-collapse" style={{ minWidth: 880 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${COLORS.line}` }}>
@@ -929,7 +944,7 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
   const hasData = history.length > 0;
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-10">
         <button
           onClick={onBack}
@@ -950,8 +965,8 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
       </div>
 
       <div className="flex items-start justify-between flex-wrap gap-6 mb-8">
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 9vw, 96px)", lineHeight: 0.9, color: COLORS.ink, letterSpacing: "-0.01em" }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(44px, 9vw, 96px)", lineHeight: 0.9, color: COLORS.ink, letterSpacing: "-0.01em" }}>
             {player.name.toUpperCase()}
           </h1>
           {player.nickname && (
@@ -1019,7 +1034,7 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>BEST PARTNER</div>
               {chemistry.best ? (
                 <>
-                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 42, color: COLORS.ink, lineHeight: 1, marginTop: 8 }}>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(32px, 7vw, 42px)", color: COLORS.ink, lineHeight: 1, marginTop: 8 }}>
                     {chemistry.best.name.toUpperCase()}
                   </div>
                   <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 15, color: COLORS.inkMuted, marginTop: 6 }}>
@@ -1034,7 +1049,7 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>NEMESIS</div>
               {chemistry.nemesis ? (
                 <>
-                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 42, color: COLORS.attacker, lineHeight: 1, marginTop: 8 }}>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(32px, 7vw, 42px)", color: COLORS.attacker, lineHeight: 1, marginTop: 8 }}>
                     {chemistry.nemesis.name.toUpperCase()}
                   </div>
                   <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 15, color: COLORS.inkMuted, marginTop: 6 }}>
@@ -1081,7 +1096,7 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
                 <button
                   key={m.id}
                   onClick={() => onOpenMatch && onOpenMatch(m.id)}
-                  className="w-full grid grid-cols-12 gap-3 items-center px-5 py-4 text-left transition-colors"
+                  className="w-full grid grid-cols-12 gap-3 items-center px-4 md:px-5 py-4 text-left transition-colors"
                   style={{ background: "transparent", border: "none", borderBottom: `1px solid ${COLORS.lineSoft}`, cursor: "pointer" }}
                   onMouseOver={(e) => (e.currentTarget.style.background = COLORS.bg3)}
                   onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
@@ -1131,7 +1146,7 @@ const PlayerProfile = ({ player, players, matches, onBack, onOpenMatch }) => {
 // ——————————————————————————————————————————————————————————————
 // TOP PERFORMERS
 // ——————————————————————————————————————————————————————————————
-const TopPerformers = ({ standings, matches }) => {
+const TopPerformers = ({ standings, matches, onOpenPlayer }) => {
   const noData = matches.filter(m => m.status === "completed").length === 0;
   const topScorer  = [...standings].sort((a, b) => b.g - a.g)[0];
   const topAssist  = [...standings].sort((a, b) => b.a - a.a)[0];
@@ -1146,7 +1161,7 @@ const TopPerformers = ({ standings, matches }) => {
   ];
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="mb-8">
         <SectionTag n={2} />
         <HugeHeading>TOP PERFORMERS</HugeHeading>
@@ -1169,7 +1184,27 @@ const TopPerformers = ({ standings, matches }) => {
                 </>
               ) : (
                 <>
-                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 46, lineHeight: 0.95, color: COLORS.ink, marginTop: 20, letterSpacing: "0.01em" }}>{c.player.name.toUpperCase()}</div>
+                  <button
+                    onClick={() => onOpenPlayer && onOpenPlayer(c.player.id)}
+                    style={{
+                      fontFamily: FONT_DISPLAY,
+                      fontSize: "clamp(36px, 6vw, 46px)",
+                      lineHeight: 0.95,
+                      color: COLORS.ink,
+                      marginTop: 20,
+                      letterSpacing: "0.01em",
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      transition: "color 150ms",
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = COLORS.accent)}
+                    onMouseOut={(e) => (e.currentTarget.style.color = COLORS.ink)}
+                  >
+                    {c.player.name.toUpperCase()}
+                  </button>
                   <div className="mt-2 flex items-center gap-2">
                     {React.createElement(roleIcon(c.player.role), { size: 12, style: { color: roleColor(c.player.role) } })}
                     <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: roleColor(c.player.role), letterSpacing: "0.1em" }}>{c.player.role.toUpperCase()}</span>
@@ -1247,7 +1282,7 @@ const RoleFilter = ({ role, setRole }) => (
           key={r}
           onClick={() => setRole(r)}
           style={{
-            padding: "8px 16px",
+            padding: "8px 14px",
             fontFamily: FONT_DISPLAY,
             fontSize: 13,
             letterSpacing: "0.1em",
@@ -1268,7 +1303,6 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
   const [open, setOpen] = useState(false);
   const player = options.find((p) => String(p.id) === String(value));
 
-  // Close the menu when clicking outside
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -1372,7 +1406,7 @@ const PlayerPicker = ({ label, value, onChange, options }) => {
   );
 };
 
-const CompareRow = ({ row }) => {
+const CompareRow = ({ row, isMobile }) => {
   let winner = "tie";
   if (!row.noWinner && row.p1 !== row.p2) {
     if (row.inverse) {
@@ -1390,16 +1424,16 @@ const CompareRow = ({ row }) => {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "1fr 180px 1fr",
+      gridTemplateColumns: isMobile ? "1fr 90px 1fr" : "1fr 180px 1fr",
       alignItems: "center",
-      padding: "14px 16px",
+      padding: isMobile ? "12px 12px" : "14px 16px",
       background: COLORS.bg2,
       border: `1px solid ${COLORS.line}`,
     }}>
       <div style={{ textAlign: "right" }}>
         <div style={{
           fontFamily: FONT_DISPLAY,
-          fontSize: 32,
+          fontSize: isMobile ? 22 : 32,
           color: winner === "p1" ? COLORS.accent : COLORS.ink,
           lineHeight: 1,
         }}>
@@ -1407,11 +1441,11 @@ const CompareRow = ({ row }) => {
         </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: isMobile ? 9 : 11, color: COLORS.inkMuted, letterSpacing: "0.15em" }}>
           {row.label}
         </div>
         {winner !== "tie" && (
-          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.accent, letterSpacing: "0.15em", marginTop: 4 }}>
+          <div style={{ fontFamily: FONT_MONO, fontSize: isMobile ? 9 : 10, color: COLORS.accent, letterSpacing: "0.15em", marginTop: 4 }}>
             + {diffDisplay}{suffix}
           </div>
         )}
@@ -1419,7 +1453,7 @@ const CompareRow = ({ row }) => {
       <div style={{ textAlign: "left" }}>
         <div style={{
           fontFamily: FONT_DISPLAY,
-          fontSize: 32,
+          fontSize: isMobile ? 22 : 32,
           color: winner === "p2" ? COLORS.accent : COLORS.ink,
           lineHeight: 1,
         }}>
@@ -1437,7 +1471,7 @@ const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 48, color: record.w > 0 ? (accentLeft || COLORS.accent) : COLORS.inkMuted, lineHeight: 1 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(36px, 8vw, 48px)", color: record.w > 0 ? (accentLeft || COLORS.accent) : COLORS.inkMuted, lineHeight: 1 }}>
           {record.w}
         </div>
         <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
@@ -1445,7 +1479,7 @@ const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft
         </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: COLORS.inkMuted, lineHeight: 1 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 6vw, 36px)", color: COLORS.inkMuted, lineHeight: 1 }}>
           {record.d}
         </div>
         <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
@@ -1453,7 +1487,7 @@ const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft
         </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 36, color: record.l > 0 ? (accentRight || COLORS.ink) : COLORS.inkMuted, lineHeight: 1 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 6vw, 36px)", color: record.l > 0 ? (accentRight || COLORS.ink) : COLORS.inkMuted, lineHeight: 1 }}>
           {record.l}
         </div>
         <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.15em", marginTop: 6 }}>
@@ -1467,7 +1501,7 @@ const RecordCard = ({ title, record, leftLabel, rightLabel, subtitle, accentLeft
   </div>
 );
 
-const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
+const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch, isMobile }) => {
   const m = entry.match;
   let titleNode;
   if (entry.result === "W") {
@@ -1476,6 +1510,54 @@ const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
     titleNode = (<><span style={{ color: COLORS.ink }}>{p2Name.toUpperCase()}</span> beat {p1Name.toUpperCase()} · {entry.p1Ag}—{entry.p1For}</>);
   } else {
     titleNode = (<>DRAW · {entry.p1For}—{entry.p1Ag}</>);
+  }
+
+  // Build subtitle text for mobile (compresses the per-player G/A into one line)
+  const p1Contrib = entry.p1Goals > 0 || entry.p1Assists > 0
+    ? `${entry.p1Goals > 0 ? `${entry.p1Goals}G` : ""}${entry.p1Goals > 0 && entry.p1Assists > 0 ? " " : ""}${entry.p1Assists > 0 ? `${entry.p1Assists}A` : ""}`
+    : "—";
+  const p2Contrib = entry.p2Goals > 0 || entry.p2Assists > 0
+    ? `${entry.p2Goals > 0 ? `${entry.p2Goals}G` : ""}${entry.p2Goals > 0 && entry.p2Assists > 0 ? " " : ""}${entry.p2Assists > 0 ? `${entry.p2Assists}A` : ""}`
+    : "—";
+  const anyContrib = entry.p1Goals + entry.p1Assists + entry.p2Goals + entry.p2Assists > 0;
+
+  if (isMobile) {
+    return (
+      <button
+        onClick={() => onOpenMatch(m.id)}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "60px 1fr 20px",
+          alignItems: "center",
+          gap: 12,
+          padding: "12px 14px",
+          background: "transparent",
+          border: "none",
+          borderBottom: `1px solid ${COLORS.lineSoft}`,
+          cursor: "pointer",
+          width: "100%",
+          textAlign: "left",
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: COLORS.inkMuted, letterSpacing: "0.15em" }}>MW {String(m.matchweek).padStart(2, "0")}</div>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 13, color: COLORS.ink, marginTop: 2 }}>{formatDate(m.date).toUpperCase()}</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: COLORS.ink, lineHeight: 1.3 }}>{titleNode}</div>
+          {anyContrib && (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.inkMuted, letterSpacing: "0.1em", marginTop: 4 }}>
+              <span style={{ color: (entry.p1Goals + entry.p1Assists) > 0 ? COLORS.accent : COLORS.inkMuted }}>{p1Name.toUpperCase()}: {p1Contrib}</span>
+              <span style={{ margin: "0 6px" }}>·</span>
+              <span style={{ color: (entry.p2Goals + entry.p2Assists) > 0 ? COLORS.accent : COLORS.inkMuted }}>{p2Name.toUpperCase()}: {p2Contrib}</span>
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <ArrowUpRight size={14} style={{ color: COLORS.inkMuted }} />
+        </div>
+      </button>
+    );
   }
 
   return (
@@ -1503,10 +1585,10 @@ const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
       </div>
       <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink }}>{titleNode}</div>
       <div style={{ textAlign: "center", fontFamily: FONT_MONO, fontSize: 12, letterSpacing: "0.15em", color: (entry.p1Goals + entry.p1Assists) === 0 ? COLORS.inkMuted : COLORS.accent }}>
-        {(entry.p1Goals + entry.p1Assists) === 0 ? "—" : `${entry.p1Goals > 0 ? `${entry.p1Goals}G` : ""}${entry.p1Goals > 0 && entry.p1Assists > 0 ? " " : ""}${entry.p1Assists > 0 ? `${entry.p1Assists}A` : ""}`}
+        {p1Contrib}
       </div>
       <div style={{ textAlign: "center", fontFamily: FONT_MONO, fontSize: 12, letterSpacing: "0.15em", color: (entry.p2Goals + entry.p2Assists) === 0 ? COLORS.inkMuted : COLORS.accent }}>
-        {(entry.p2Goals + entry.p2Assists) === 0 ? "—" : `${entry.p2Goals > 0 ? `${entry.p2Goals}G` : ""}${entry.p2Goals > 0 && entry.p2Assists > 0 ? " " : ""}${entry.p2Assists > 0 ? `${entry.p2Assists}A` : ""}`}
+        {p2Contrib}
       </div>
       <div style={{ textAlign: "right" }}>
         <ArrowUpRight size={14} style={{ color: COLORS.inkMuted }} />
@@ -1516,13 +1598,13 @@ const H2HMatchRow = ({ entry, p1Name, p2Name, onOpenMatch }) => {
 };
 
 const PlayerCompare = ({ players, matches, onOpenMatch }) => {
+  const isMobile = useIsMobile();
   const [role, setRole] = useState("Attacker");
   const [userP1Id, setUserP1Id] = useState(null);
   const [userP2Id, setUserP2Id] = useState(null);
 
   const rolePlayers = useMemo(() => players.filter((p) => p.role === role), [players, role]);
 
-  // Derived selections — always valid as long as the roster has data
   const p1 = useMemo(() => {
     if (userP1Id != null) {
       const found = rolePlayers.find((p) => String(p.id) === String(userP1Id));
@@ -1544,7 +1626,6 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
   const setP1Id = setUserP1Id;
   const setP2Id = setUserP2Id;
 
-  // Reset user picks when role changes
   useEffect(() => {
     setUserP1Id(null);
     setUserP2Id(null);
@@ -1570,7 +1651,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
   const p2Options = rolePlayers.filter((p) => p.id !== p1Id);
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="mb-8">
         <SectionTag n={3} label="compare" />
         <HugeHeading>PLAYER COMPARISON</HugeHeading>
@@ -1590,8 +1671,8 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
         />
       ) : !p1 || !p2 ? null : (
         <>
-          {/* Player pickers */}
-          <div className="grid items-center gap-4 mb-8" style={{ gridTemplateColumns: "1fr 60px 1fr" }}>
+          {/* Player pickers — stacks vertical on mobile, side-by-side on desktop */}
+          <div className="grid items-center gap-4 mb-8" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 60px 1fr" }}>
             <PlayerPicker
               label="PLAYER 1"
               value={p1Id}
@@ -1609,7 +1690,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
             />
           </div>
 
-          {/* Two record cards */}
+          {/* Records */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <RecordCard
               title="HEAD-TO-HEAD"
@@ -1652,7 +1733,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
           </div>
           <div className="flex flex-col gap-2 mb-8">
             {compareRows.map((row) => (
-              <CompareRow key={row.label} row={row} />
+              <CompareRow key={row.label} row={row} isMobile={isMobile} />
             ))}
           </div>
 
@@ -1677,6 +1758,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
                   p1Name={p1.name}
                   p2Name={p2.name}
                   onOpenMatch={onOpenMatch}
+                  isMobile={isMobile}
                 />
               ))}
             </div>
@@ -1693,7 +1775,7 @@ const PlayerCompare = ({ players, matches, onOpenMatch }) => {
 const Fixtures = ({ matches }) => {
   const fixtures = matches.filter((m) => m.status === "scheduled");
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="mb-8">
         <SectionTag n={4} />
         <HugeHeading>UPCOMING FIXTURES</HugeHeading>
@@ -1703,7 +1785,7 @@ const Fixtures = ({ matches }) => {
       ) : (
         <div className="space-y-3">
           {fixtures.map((f) => (
-            <div key={f.id} className="grid grid-cols-12 gap-4 items-center p-5" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+            <div key={f.id} className="grid grid-cols-12 gap-4 items-center p-4 md:p-5" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
               <div className="col-span-12 md:col-span-2">
                 <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.ink, lineHeight: 1 }}>{formatDate(f.date).toUpperCase()}</div>
                 <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: COLORS.accent, marginTop: 4 }}>{f.time}</div>
@@ -1734,7 +1816,7 @@ const Fixtures = ({ matches }) => {
 const Results = ({ matches, onOpenMatch }) => {
   const results = matches.filter((m) => m.status === "completed").slice().reverse();
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="mb-8">
         <SectionTag n={5} />
         <HugeHeading>RECENT RESULTS</HugeHeading>
@@ -1749,7 +1831,7 @@ const Results = ({ matches, onOpenMatch }) => {
             const awayWin = r.awayScore > r.homeScore;
             return (
               <button key={r.id} onClick={() => onOpenMatch(r.id)}
-                className="w-full grid grid-cols-12 gap-4 items-center p-5 text-left transition-colors"
+                className="w-full grid grid-cols-12 gap-4 items-center p-4 md:p-5 text-left transition-colors"
                 style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}`, cursor: "pointer" }}
                 onMouseOver={(e) => (e.currentTarget.style.borderColor = COLORS.accent)}
                 onMouseOut={(e) => (e.currentTarget.style.borderColor = COLORS.line)}>
@@ -1785,7 +1867,7 @@ const Results = ({ matches, onOpenMatch }) => {
 // ——————————————————————————————————————————————————————————————
 // MATCH DETAIL
 // ——————————————————————————————————————————————————————————————
-const MatchDetail = ({ match, onBack }) => {
+const MatchDetail = ({ match, onBack, players, onOpenPlayer }) => {
   const homeWin = match.homeScore > match.awayScore;
   const awayWin = match.awayScore > match.homeScore;
   const homeGoals = match.goals.filter((g) => g.team === "home");
@@ -1799,7 +1881,7 @@ const MatchDetail = ({ match, onBack }) => {
   };
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <button onClick={onBack} className="flex items-center gap-2 mb-6" style={{ fontFamily: FONT_MONO, fontSize: 12, color: COLORS.inkMuted, letterSpacing: "0.15em", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
         <ArrowLeft size={14} />
         BACK TO RESULTS
@@ -1807,7 +1889,7 @@ const MatchDetail = ({ match, onBack }) => {
 
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-12 lg:col-span-8">
-          <div className="p-6 md:p-10" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+          <div className="p-4 md:p-10" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 flex items-center justify-center" style={{ background: COLORS.accent, color: "#000" }}>
@@ -1821,22 +1903,22 @@ const MatchDetail = ({ match, onBack }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-12 items-center gap-4 my-8">
+            <div className="grid grid-cols-12 items-center gap-2 md:gap-4 my-8">
               <div className="col-span-5 text-right">
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 5vw, 48px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(22px, 5vw, 48px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
                   {match.homeCaptain.toUpperCase()}'S XI
                 </div>
               </div>
               <div className="col-span-2 text-center">
-                <div className="flex items-center justify-center gap-3">
-                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 10vw, 96px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.homeScore}</span>
-                  <span style={{ color: COLORS.inkMuted, fontSize: 32 }}>—</span>
-                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 10vw, 96px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.awayScore}</span>
+                <div className="flex items-center justify-center gap-2 md:gap-3">
+                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(40px, 10vw, 96px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.homeScore}</span>
+                  <span style={{ color: COLORS.inkMuted, fontSize: 24 }}>—</span>
+                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(40px, 10vw, 96px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.awayScore}</span>
                 </div>
                 <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginTop: 8 }}>FULL TIME</div>
               </div>
               <div className="col-span-5 text-left">
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 5vw, 48px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(22px, 5vw, 48px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
                   {match.awayCaptain.toUpperCase()}'S XI
                 </div>
               </div>
@@ -1847,7 +1929,7 @@ const MatchDetail = ({ match, onBack }) => {
                 {homeGoals.length === 0 ? (
                   <Italic>no goals</Italic>
                 ) : homeGoals.map((g, i) => (
-                  <div key={i} className="flex items-center justify-end gap-2" style={{ fontFamily: FONT_BODY, fontSize: 15, color: COLORS.ink, marginBottom: 4 }}>
+                  <div key={i} className="flex items-center justify-end gap-2" style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink, marginBottom: 4 }}>
                     <span>{goalLabel(g)}</span>
                     <Target size={12} style={{ color: COLORS.accent }} />
                   </div>
@@ -1857,7 +1939,7 @@ const MatchDetail = ({ match, onBack }) => {
                 {awayGoals.length === 0 ? (
                   <Italic>no goals</Italic>
                 ) : awayGoals.map((g, i) => (
-                  <div key={i} className="flex items-center gap-2" style={{ fontFamily: FONT_BODY, fontSize: 15, color: COLORS.ink, marginBottom: 4 }}>
+                  <div key={i} className="flex items-center gap-2" style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink, marginBottom: 4 }}>
                     <Target size={12} style={{ color: COLORS.accent }} />
                     <span>{goalLabel(g)}</span>
                   </div>
@@ -1866,9 +1948,9 @@ const MatchDetail = ({ match, onBack }) => {
             </div>
           </div>
 
-          <div className="mt-6 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+          <div className="mt-6 p-4 md:p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 16 }}>LINEUPS</div>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
                 { label: match.homeCaptain, captain: match.homeCaptain, squad: match.homeSquad, ringers: match.homeRingers || [] },
                 { label: match.awayCaptain, captain: match.awayCaptain, squad: match.awaySquad, ringers: match.awayRingers || [] },
@@ -1884,13 +1966,36 @@ const MatchDetail = ({ match, onBack }) => {
                     <Italic>No squad recorded.</Italic>
                   ) : (
                     <>
-                      {side.squad.map((n) => (
-                        <div key={n} className="flex items-center gap-2 mb-1" style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink }}>
-                          {n === side.captain && <Star size={12} style={{ color: COLORS.accent, fill: COLORS.accent }} />}
-                          {n}
-                          {n === match.motm && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: COLORS.accent, letterSpacing: "0.15em", marginLeft: 4 }}>· MOTM</span>}
-                        </div>
-                      ))}
+                      {side.squad.map((n) => {
+                        const playerObj = (players || []).find((p) => p.name === n);
+                        return (
+                          <div key={n} className="flex items-center gap-2 mb-1" style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink }}>
+                            {n === side.captain && <Star size={12} style={{ color: COLORS.accent, fill: COLORS.accent }} />}
+                            {playerObj ? (
+                              <button
+                                onClick={() => onOpenPlayer && onOpenPlayer(playerObj.id)}
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  padding: 0,
+                                  color: COLORS.ink,
+                                  fontFamily: FONT_BODY,
+                                  fontSize: 14,
+                                  cursor: "pointer",
+                                  transition: "color 150ms",
+                                }}
+                                onMouseOver={(e) => (e.currentTarget.style.color = COLORS.accent)}
+                                onMouseOut={(e) => (e.currentTarget.style.color = COLORS.ink)}
+                              >
+                                {n}
+                              </button>
+                            ) : (
+                              <span>{n}</span>
+                            )}
+                            {n === match.motm && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: COLORS.accent, letterSpacing: "0.15em", marginLeft: 4 }}>· MOTM</span>}
+                          </div>
+                        );
+                      })}
                       {side.ringers.map((r) => (
                         <div key={"r-" + r} className="flex items-center gap-2 mb-1" style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.inkMuted }}>
                           {r}
@@ -1906,7 +2011,7 @@ const MatchDetail = ({ match, onBack }) => {
           </div>
 
           {match.notes && (
-            <div className="mt-6 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+            <div className="mt-6 p-4 md:p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
               <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 12 }}>MATCH NOTES</div>
               <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 22, color: COLORS.ink, lineHeight: 1.4 }}>"{match.notes}"</div>
             </div>
@@ -1920,7 +2025,7 @@ const MatchDetail = ({ match, onBack }) => {
               <Award size={14} strokeWidth={2.5} />
               <span style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.2em" }}>MAN OF THE MATCH</span>
             </div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 56, lineHeight: 0.9, marginTop: 12, letterSpacing: "-0.01em" }} className="relative z-10">
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(40px, 9vw, 56px)", lineHeight: 0.9, marginTop: 12, letterSpacing: "-0.01em" }} className="relative z-10">
               {match.motm ? match.motm.toUpperCase() : "—"}
             </div>
           </div>
@@ -2193,12 +2298,12 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
   };
 
   return (
-    <div className="p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+    <div className="p-4 md:p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div style={{ fontFamily: FONT_DISPLAY, fontSize: 28, color: COLORS.ink, letterSpacing: "0.02em" }}>
           {isNew ? "NEW MATCH" : `EDIT MATCH — MW ${String(draft.matchweek).padStart(2, "0")}`}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {!isNew && onDelete && (
             <Btn variant="danger" onClick={() => { if (confirm("Delete this match?")) onDelete(draft.id); }}>
               <Trash2 size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
@@ -2376,7 +2481,7 @@ const MatchForm = ({ players, match, onCancel, onSave, onDelete, nextMatchweek }
 };
 
 // ——————————————————————————————————————————————————————————————
-// ROSTER MANAGER
+// ROSTER MANAGER — mobile-tuned with stacked card layout on phones
 // ——————————————————————————————————————————————————————————————
 const miniBtnStyle = {
   padding: "6px 10px",
@@ -2390,6 +2495,7 @@ const miniBtnStyle = {
 };
 
 const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickname, deletePlayer, onBack }) => {
+  const isMobile = useIsMobile();
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("Midfielder");
   const [newNickname, setNewNickname] = useState("");
@@ -2436,7 +2542,7 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
   const roleLabel = (role) => (role || "Midfielder").toUpperCase();
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div>
           <SectionTag n={6} label="roster" />
@@ -2446,9 +2552,12 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
         <Btn variant="ghost" onClick={onBack}>← BACK TO MATCHES</Btn>
       </div>
 
-      <div className="mb-10 p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+      <div className="mb-10 p-4 md:p-6" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginBottom: 14 }}>NEW PLAYER</div>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "1.6fr 1.6fr 1.2fr auto", alignItems: "end" }}>
+        <div className="grid gap-3" style={{
+          gridTemplateColumns: isMobile ? "1fr" : "1.6fr 1.6fr 1.2fr auto",
+          alignItems: "end",
+        }}>
           <div>
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, marginBottom: 6, letterSpacing: "0.15em" }}>NAME</div>
             <input
@@ -2483,22 +2592,22 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
-        <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
-          <div>#</div>
-          <div>PLAYER</div>
-          <div>ROLE</div>
-          <div style={{ textAlign: "right" }}>ACTIONS</div>
-        </div>
-        {players.map((p, i) => {
-          const isEditing = editingNicknameFor === p.name;
-          return (
-            <div key={p.name} className="grid items-center px-4 py-4" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}` }}>
-              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</div>
-              <div>
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
+      {/* Player list — uses stacked cards on mobile, table-like grid on desktop */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {players.map((p, i) => {
+            const isEditing = editingNicknameFor === p.name;
+            return (
+              <div key={p.name} className="p-4" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <div className="flex items-baseline gap-3">
+                    <span style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</span>
+                    <span style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.ink, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</span>
+                  </div>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, padding: "3px 7px", border: `1px solid ${localRoleColor(p.role)}`, color: localRoleColor(p.role), letterSpacing: "0.15em", whiteSpace: "nowrap" }}>{roleLabel(p.role)}</span>
+                </div>
                 {isEditing ? (
-                  <div className="flex gap-2 items-center mt-1">
+                  <div className="flex gap-2 items-center mt-2 flex-wrap">
                     <input
                       type="text"
                       autoFocus
@@ -2509,40 +2618,96 @@ const RosterManager = ({ players, addPlayer, updatePlayerRole, updatePlayerNickn
                         if (e.key === "Enter") saveNickname();
                         if (e.key === "Escape") cancelEditNickname();
                       }}
-                      style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, maxWidth: 240 }}
+                      style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, flex: 1, minWidth: 140 }}
                     />
                     <button onClick={saveNickname} style={{ ...miniBtnStyle, color: COLORS.accent, borderColor: COLORS.accent, padding: "4px 8px" }}>SAVE</button>
                     <button onClick={cancelEditNickname} style={{ ...miniBtnStyle, padding: "4px 8px" }}>CANCEL</button>
                   </div>
                 ) : (
-                  p.nickname ? (
-                    <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginTop: 2 }}>— "{p.nickname}"</div>
-                  ) : (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, marginTop: 4, letterSpacing: "0.15em" }}>NO NICKNAME</div>
-                  )
-                )}
-              </div>
-              <div>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${localRoleColor(p.role)}`, color: localRoleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                {!isEditing && (
                   <>
-                    <button onClick={() => startEditNickname(p)} style={{ ...miniBtnStyle, marginRight: 6 }}>NICKNAME</button>
-                    <button onClick={() => handleRoleChange(p.name, p.role)} style={{ ...miniBtnStyle, marginRight: 6 }}>ROLE</button>
-                    <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
+                    {p.nickname ? (
+                      <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginBottom: 10 }}>— "{p.nickname}"</div>
+                    ) : (
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, marginBottom: 10, letterSpacing: "0.15em" }}>NO NICKNAME</div>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={() => startEditNickname(p)} style={miniBtnStyle}>NICKNAME</button>
+                      <button onClick={() => handleRoleChange(p.name, p.role)} style={miniBtnStyle}>ROLE</button>
+                      <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
+                    </div>
                   </>
                 )}
               </div>
+            );
+          })}
+          {players.length === 0 && (
+            <div style={{ padding: "60px 20px", textAlign: "center", color: COLORS.inkMuted, fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18 }}>
+              No players yet. Add the first one above.
             </div>
-          );
-        })}
-        {players.length === 0 && (
-          <div style={{ padding: "60px 20px", textAlign: "center", color: COLORS.inkMuted, fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18 }}>
-            No players yet. Add the first one above.
+          )}
+        </div>
+      ) : (
+        <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
+          <div className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}`, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em" }}>
+            <div>#</div>
+            <div>PLAYER</div>
+            <div>ROLE</div>
+            <div style={{ textAlign: "right" }}>ACTIONS</div>
           </div>
-        )}
-      </div>
+          {players.map((p, i) => {
+            const isEditing = editingNicknameFor === p.name;
+            return (
+              <div key={p.name} className="grid items-center px-4 py-4" style={{ gridTemplateColumns: "60px 1fr 180px 280px", borderBottom: `1px solid ${COLORS.line}` }}>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.inkMuted }}>{String(i + 1).padStart(2, "0")}</div>
+                <div>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.02em" }}>{p.name.toUpperCase()}</div>
+                  {isEditing ? (
+                    <div className="flex gap-2 items-center mt-1">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Nickname (optional)"
+                        value={editNicknameValue}
+                        onChange={(e) => setEditNicknameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveNickname();
+                          if (e.key === "Escape") cancelEditNickname();
+                        }}
+                        style={{ ...inputStyle, padding: "6px 10px", fontSize: 12, maxWidth: 240 }}
+                      />
+                      <button onClick={saveNickname} style={{ ...miniBtnStyle, color: COLORS.accent, borderColor: COLORS.accent, padding: "4px 8px" }}>SAVE</button>
+                      <button onClick={cancelEditNickname} style={{ ...miniBtnStyle, padding: "4px 8px" }}>CANCEL</button>
+                    </div>
+                  ) : (
+                    p.nickname ? (
+                      <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 14, color: COLORS.inkMuted, marginTop: 2 }}>— "{p.nickname}"</div>
+                    ) : (
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: COLORS.lineSoft, marginTop: 4, letterSpacing: "0.15em" }}>NO NICKNAME</div>
+                    )
+                  )}
+                </div>
+                <div>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, padding: "4px 8px", border: `1px solid ${localRoleColor(p.role)}`, color: localRoleColor(p.role), letterSpacing: "0.15em" }}>{roleLabel(p.role)}</span>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  {!isEditing && (
+                    <>
+                      <button onClick={() => startEditNickname(p)} style={{ ...miniBtnStyle, marginRight: 6 }}>NICKNAME</button>
+                      <button onClick={() => handleRoleChange(p.name, p.role)} style={{ ...miniBtnStyle, marginRight: 6 }}>ROLE</button>
+                      <button onClick={() => handleDelete(p.name)} style={{ ...miniBtnStyle, color: COLORS.attacker, borderColor: COLORS.attacker }}>DELETE</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {players.length === 0 && (
+            <div style={{ padding: "60px 20px", textAlign: "center", color: COLORS.inkMuted, fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18 }}>
+              No players yet. Add the first one above.
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 };
@@ -2634,9 +2799,9 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
 
   if (!session) {
     return (
-      <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+      <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
         <div className="mb-8"><SectionTag n={6} /><HugeHeading>ADMIN ACCESS</HugeHeading></div>
-        <div className="max-w-md p-8" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
+        <div className="max-w-md p-6 md:p-8" style={{ background: COLORS.bg2, border: `1px solid ${COLORS.line}` }}>
           <div className="flex items-center gap-2 mb-6" style={{ color: COLORS.accent }}>
             <Lock size={16} />
             <span style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.2em" }}>RESTRICTED AREA</span>
@@ -2673,7 +2838,7 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
 
   if (editingId || creatingNew) {
     return (
-      <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+      <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
         <div className="mb-8"><SectionTag n={6} label="match editor" /><HugeHeading>{creatingNew ? "NEW FIXTURE" : "UPDATE MATCH"}</HugeHeading></div>
         <MatchForm
           players={players}
@@ -2695,10 +2860,10 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
   const completed = matches.filter((m) => m.status === "completed").slice().reverse();
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-10">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div><SectionTag n={6} label="dashboard" /><HugeHeading>ADMIN DASHBOARD</HugeHeading></div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Btn variant="ghost" onClick={() => setView(view === "matches" ? "roster" : "matches")}>{view === "matches" ? "MANAGE ROSTER" : "← BACK TO MATCHES"}</Btn>
           <Btn variant="ghost" onClick={signOut}>SIGN OUT</Btn>
           <Btn onClick={() => setCreatingNew(true)}><Plus size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />NEW MATCH</Btn>
@@ -2765,9 +2930,9 @@ const Admin = ({ players, matches, setMatches, session, addPlayer, updatePlayerR
 // ——————————————————————————————————————————————————————————————
 const Footer = ({ players }) => (
   <footer className="border-t mt-10" style={{ borderColor: COLORS.line }}>
-    <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 grid grid-cols-12 gap-6">
+    <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10 grid grid-cols-12 gap-6">
       <div className="col-span-12 md:col-span-6">
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 48, color: COLORS.ink, lineHeight: 0.9 }}>FRIDAY NIGHT<br />FOOTBALL.</div>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(36px, 8vw, 48px)", color: COLORS.ink, lineHeight: 0.9 }}>FRIDAY NIGHT<br />FOOTBALL.</div>
         <div style={{ fontFamily: FONT_SERIF, fontStyle: "italic", fontSize: 18, color: COLORS.inkMuted, marginTop: 8 }}>— playing regularly since September 2025.</div>
       </div>
       <div className="col-span-6 md:col-span-3">
@@ -2782,7 +2947,7 @@ const Footer = ({ players }) => (
         <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: COLORS.ink, marginBottom: 6 }}>{players.length} players</div>
       </div>
     </div>
-    <div className="border-t py-4 px-6 md:px-10 max-w-[1400px] mx-auto flex justify-between flex-wrap gap-2"
+    <div className="border-t py-4 px-4 md:px-10 max-w-[1400px] mx-auto flex justify-between flex-wrap gap-2"
       style={{ borderColor: COLORS.line, fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.15em" }}>
       <span>© FRIDAY NIGHT FOOTBALL — ALL OPINIONS IN THE GROUP CHAT ARE FINAL</span>
       <span>BUILT WITH ONE TOUCH.</span>
@@ -2801,6 +2966,7 @@ export default function App() {
   const [matchDetailId, setMatchDetailId] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
@@ -2839,6 +3005,7 @@ export default function App() {
 
       setPlayers(playersData || []);
       setMatches(normalisedMatches);
+      setLoading(false);
     }
     loadData();
   }, []);
@@ -2912,6 +3079,23 @@ export default function App() {
     setSelectedPlayerId(null);
   }, [tab]);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.bg, color: COLORS.ink, fontFamily: FONT_BODY }}>
+        <Grain />
+        <div className="text-center px-6">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="w-9 h-9 flex items-center justify-center" style={{ background: COLORS.accent, color: "#000" }}>
+              <Trophy size={18} strokeWidth={2.5} />
+            </div>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, letterSpacing: "0.04em", color: COLORS.ink }}>FRIDAY NIGHT FOOTBALL</div>
+          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.accent, letterSpacing: "0.3em" }}>LOADING THE SEASON…</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full" style={{ background: COLORS.bg, color: COLORS.ink, fontFamily: FONT_BODY }}>
       <Grain />
@@ -2921,7 +3105,12 @@ export default function App() {
       {detailMatch ? (
         <MatchDetail
           match={detailMatch}
+          players={players}
           onBack={() => setMatchDetailId(null)}
+          onOpenPlayer={(id) => {
+            setMatchDetailId(null);
+            setSelectedPlayerId(id);
+          }}
         />
       ) : selectedPlayer ? (
         <PlayerProfile
@@ -2946,7 +3135,7 @@ export default function App() {
               />
             </>
           )}
-          {tab === "top performers" && <TopPerformers standings={standings} matches={matches} />}
+          {tab === "top performers" && <TopPerformers standings={standings} matches={matches} onOpenPlayer={(id) => setSelectedPlayerId(id)} />}
           {tab === "compare" && (
             <PlayerCompare
               players={players}
