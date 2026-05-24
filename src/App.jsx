@@ -51,8 +51,8 @@ function computeStats(playerName, matches) {
   let mp = 0, w = 0, d = 0, l = 0, g = 0, a = 0;
   for (const m of matches) {
     if (m.status !== "completed") continue;
-    const inHome = m.homeSquad.includes(playerName);
-    const inAway = m.awaySquad.includes(playerName);
+    const inHome = m.homeSquad.includes(playerName) || (m.homeRingers || []).includes(playerName);
+    const inAway = m.awaySquad.includes(playerName) || (m.awayRingers || []).includes(playerName);
     if (inHome || inAway) {
       mp++;
       const forScore = inHome ? m.homeScore : m.awayScore;
@@ -63,6 +63,7 @@ function computeStats(playerName, matches) {
     }
     for (const goal of m.goals) {
       if (!goal.isRinger && goal.scorer === playerName) g++;
+      else if (goal.isRinger && goal.ringerName === playerName) g++;
       if (goal.assister === playerName) a++;
     }
   }
@@ -87,8 +88,8 @@ function getPlayerMatchHistory(playerName, matches) {
   const history = [];
   for (const m of matches) {
     if (m.status !== "completed") continue;
-    const inHome = m.homeSquad.includes(playerName);
-    const inAway = m.awaySquad.includes(playerName);
+    const inHome = m.homeSquad.includes(playerName) || (m.homeRingers || []).includes(playerName);
+    const inAway = m.awaySquad.includes(playerName) || (m.awayRingers || []).includes(playerName);
     if (!inHome && !inAway) continue;
 
     const forScore = inHome ? m.homeScore : m.awayScore;
@@ -101,11 +102,17 @@ function getPlayerMatchHistory(playerName, matches) {
     let goals = 0, assists = 0;
     for (const g of m.goals) {
       if (!g.isRinger && g.scorer === playerName) goals++;
+      else if (g.isRinger && g.ringerName === playerName) goals++;
       if (g.assister === playerName) assists++;
     }
 
-    const teammates = (inHome ? m.homeSquad : m.awaySquad).filter((n) => n !== playerName);
-    const opponents = inHome ? m.awaySquad : m.homeSquad;
+    const teammates = (inHome
+      ? [...m.homeSquad, ...(m.homeRingers || [])]
+      : [...m.awaySquad, ...(m.awayRingers || [])]
+    ).filter((n) => n !== playerName);
+    const opponents = inHome
+      ? [...m.awaySquad, ...(m.awayRingers || [])]
+      : [...m.homeSquad, ...(m.homeRingers || [])];
     const isCaptain = (inHome && m.homeCaptain === playerName) || (inAway && m.awayCaptain === playerName);
 
     history.push({
@@ -311,10 +318,10 @@ function getH2H(p1Name, p2Name, matches) {
   const list = [];
   for (const m of matches) {
     if (m.status !== "completed") continue;
-    const p1Home = m.homeSquad.includes(p1Name);
-    const p1Away = m.awaySquad.includes(p1Name);
-    const p2Home = m.homeSquad.includes(p2Name);
-    const p2Away = m.awaySquad.includes(p2Name);
+    const p1Home = m.homeSquad.includes(p1Name) || (m.homeRingers || []).includes(p1Name);
+    const p1Away = m.awaySquad.includes(p1Name) || (m.awayRingers || []).includes(p1Name);
+    const p2Home = m.homeSquad.includes(p2Name) || (m.homeRingers || []).includes(p2Name);
+    const p2Away = m.awaySquad.includes(p2Name) || (m.awayRingers || []).includes(p2Name);
     if (!(p1Home || p1Away) || !(p2Home || p2Away)) continue;
     const opposite = (p1Home && p2Away) || (p1Away && p2Home);
     if (!opposite) continue;
@@ -325,8 +332,10 @@ function getH2H(p1Name, p2Name, matches) {
     let p1Goals = 0, p1Assists = 0, p2Goals = 0, p2Assists = 0;
     for (const g of m.goals) {
       if (!g.isRinger && g.scorer === p1Name) p1Goals++;
+      else if (g.isRinger && g.ringerName === p1Name) p1Goals++;
       if (g.assister === p1Name) p1Assists++;
       if (!g.isRinger && g.scorer === p2Name) p2Goals++;
+      else if (g.isRinger && g.ringerName === p2Name) p2Goals++;
       if (g.assister === p2Name) p2Assists++;
     }
 
@@ -350,10 +359,10 @@ function getTogether(p1Name, p2Name, matches) {
   const list = [];
   for (const m of matches) {
     if (m.status !== "completed") continue;
-    const p1Home = m.homeSquad.includes(p1Name);
-    const p1Away = m.awaySquad.includes(p1Name);
-    const p2Home = m.homeSquad.includes(p2Name);
-    const p2Away = m.awaySquad.includes(p2Name);
+    const p1Home = m.homeSquad.includes(p1Name) || (m.homeRingers || []).includes(p1Name);
+    const p1Away = m.awaySquad.includes(p1Name) || (m.awayRingers || []).includes(p1Name);
+    const p2Home = m.homeSquad.includes(p2Name) || (m.homeRingers || []).includes(p2Name);
+    const p2Away = m.awaySquad.includes(p2Name) || (m.awayRingers || []).includes(p2Name);
     const sameHome = p1Home && p2Home;
     const sameAway = p1Away && p2Away;
     if (!sameHome && !sameAway) continue;
