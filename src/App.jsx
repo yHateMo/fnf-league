@@ -1904,21 +1904,21 @@ const MatchDetail = ({ match, onBack, players, onOpenPlayer }) => {
             </div>
 
             <div className="my-8 md:grid md:grid-cols-12 md:items-center md:gap-4">
-              <div className="md:col-span-5 text-center md:text-right mb-4 md:mb-0">
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 5vw, 48px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
+              <div className="md:col-span-4 text-center md:text-right mb-4 md:mb-0">
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 4vw, 40px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
                   {match.homeCaptain.toUpperCase()}'S XI
                 </div>
               </div>
-              <div className="md:col-span-2 text-center">
-                <div className="flex items-center justify-center gap-3">
-                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 12vw, 96px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.homeScore}</span>
+              <div className="md:col-span-4 text-center">
+                <div className="flex items-center justify-center gap-3 md:gap-4">
+                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 10vw, 88px)", color: homeWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.homeScore}</span>
                   <span style={{ color: COLORS.inkMuted, fontSize: 28 }}>—</span>
-                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 12vw, 96px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.awayScore}</span>
+                  <span style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(56px, 10vw, 88px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1 }}>{match.awayScore}</span>
                 </div>
                 <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: COLORS.inkMuted, letterSpacing: "0.2em", marginTop: 8 }}>FULL TIME</div>
               </div>
-              <div className="md:col-span-5 text-center md:text-left mt-4 md:mt-0">
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 5vw, 48px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
+              <div className="md:col-span-4 text-center md:text-left mt-4 md:mt-0">
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(28px, 4vw, 40px)", color: awayWin ? COLORS.accent : COLORS.ink, lineHeight: 1, letterSpacing: "0.01em" }}>
                   {match.awayCaptain.toUpperCase()}'S XI
                 </div>
               </div>
